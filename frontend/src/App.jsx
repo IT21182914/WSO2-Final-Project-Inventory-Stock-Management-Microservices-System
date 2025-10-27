@@ -40,6 +40,7 @@ import PurchaseOrders from "./pages/suppliers/PurchaseOrders";
 // Order Pages
 import OrderList from "./pages/orders/OrderList";
 import OrderDetails from "./pages/orders/OrderDetails";
+import OrderCreate from "./pages/orders/OrderCreate";
 
 // System Pages
 import HealthMonitoring from "./pages/system/HealthMonitoring";
@@ -154,6 +155,7 @@ function App() {
 
             {/* Order Routes */}
             <Route path="/orders" element={<OrderList />} />
+            <Route path="/orders/create" element={<OrderCreate />} />
             <Route path="/orders/:id" element={<OrderDetails />} />
 
             {/* System Routes */}
