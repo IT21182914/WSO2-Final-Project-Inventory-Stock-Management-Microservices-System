@@ -1,0 +1,214 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kong
+  namespace: kong
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kong-ingress
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  - services
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - configuration.konghq.com
+  resources:
+  - kongplugins
+  - kongconsumers
+  - kongcredentials
+  - kongingresses
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kong-ingress
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kong-ingress
+subjects:
+- kind: ServiceAccount
+  name: kong
+  namespace: kong
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kong-config
+  namespace: kong
+data:
+  # Kong configuration
+  KONG_DATABASE: "off"  # DB-less mode for simplicity
+  KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+  KONG_PROXY_ACCESS_LOG: /dev/stdout
+  KONG_ADMIN_ACCESS_LOG: /dev/stdout
+  KONG_PROXY_ERROR_LOG: /dev/stderr
+  KONG_ADMIN_ERROR_LOG: /dev/stderr
+  KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+  KONG_PROXY_LISTEN: "0.0.0.0:8000, 0.0.0.0:8443 ssl"
+  # Prometheus metrics
+  KONG_STATUS_LISTEN: "0.0.0.0:8100"
+  KONG_NGINX_HTTP_PROMETHEUS_EXPORTER_PORT: "9542"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong-gateway
+  namespace: kong
+  labels:
+    app: kong-gateway
+    component: api-gateway
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: kong-gateway
+  template:
+    metadata:
+      labels:
+        app: kong-gateway
+        component: api-gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9542"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: kong
+      # Zero Trust: Run as non-root
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: kong
+        image: kong:3.5-alpine
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: proxy
+          containerPort: 8000
+          protocol: TCP
+        - name: proxy-ssl
+          containerPort: 8443
+          protocol: TCP
+        - name: admin
+          containerPort: 8001
+          protocol: TCP
+        - name: metrics
+          containerPort: 9542
+          protocol: TCP
+        env:
+        - name: KONG_DATABASE
+          value: "off"
+        - name: KONG_PROXY_ACCESS_LOG
+          value: "/dev/stdout"
+        - name: KONG_ADMIN_ACCESS_LOG
+          value: "/dev/stdout"
+        - name: KONG_PROXY_ERROR_LOG
+          value: "/dev/stderr"
+        - name: KONG_ADMIN_ERROR_LOG
+          value: "/dev/stderr"
+        - name: KONG_ADMIN_LISTEN
+          value: "0.0.0.0:8001"
+        - name: KONG_PROXY_LISTEN
+          value: "0.0.0.0:8000, 0.0.0.0:8443 ssl"
+        - name: KONG_STATUS_LISTEN
+          value: "0.0.0.0:8100"
+        # Enable Prometheus plugin
+        - name: KONG_PLUGINS
+          value: "bundled,prometheus"
+        - name: KONG_LOG_LEVEL
+          value: "info"
+        # Security: Drop capabilities
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /status
+            port: 8100
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /status
+            port: 8100
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: kong-config
+          mountPath: /kong/declarative
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        - name: kong-prefix
+          mountPath: /kong_prefix
+      volumes:
+      - name: kong-config
+        configMap:
+          name: kong-declarative-config
+      - name: tmp
+        emptyDir: {}
+      - name: kong-prefix
+        emptyDir: {}
+      # High availability: spread across nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: kong-gateway
+              topologyKey: kubernetes.io/hostname

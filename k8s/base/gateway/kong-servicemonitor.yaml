@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kong-gateway
+  namespace: kong
+  labels:
+    app: kong-gateway
+    prometheus: inventory
+spec:
+  selector:
+    matchLabels:
+      app: kong-gateway
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    scheme: http

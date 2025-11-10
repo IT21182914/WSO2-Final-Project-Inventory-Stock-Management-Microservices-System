@@ -1,0 +1,82 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kong-gateway-network-policy
+  namespace: kong
+spec:
+  podSelector:
+    matchLabels:
+      app: kong-gateway
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Allow traffic from NGINX Ingress
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+    - protocol: TCP
+      port: 8443
+  
+  # Allow Prometheus scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+      podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - protocol: TCP
+      port: 9542
+  
+  # Allow admin access from within cluster (kubectl port-forward)
+  - from:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8001
+  
+  egress:
+  # Allow DNS resolution
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Allow connections to all backend services
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: inventory-system
+      podSelector:
+        matchLabels:
+          component: backend
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 3001
+    - protocol: TCP
+      port: 3002
+    - protocol: TCP
+      port: 3003
+    - protocol: TCP
+      port: 3005
+    - protocol: TCP
+      port: 3006
+  
+  # Allow HTTPS to external services (if needed)
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 443

@@ -1,0 +1,214 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kong-declarative-config
+  namespace: kong
+data:
+  kong.yml: |
+    _format_version: "3.0"
+    
+    # Services - Backend microservices
+    services:
+    - name: user-service
+      url: http://user-service.inventory-system.svc.cluster.local:80
+      routes:
+      - name: user-routes
+        paths:
+        - /api/users
+        - /api/auth
+        strip_path: false
+        protocols:
+        - http
+        - https
+      plugins:
+      - name: rate-limiting
+        config:
+          minute: 100
+          policy: local
+      - name: cors
+        config:
+          origins:
+          - "*"
+          methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+          headers:
+          - Accept
+          - Authorization
+          - Content-Type
+          exposed_headers:
+          - X-Auth-Token
+          credentials: true
+          max_age: 3600
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 10
+      - name: prometheus
+        config:
+          per_consumer: false
+
+    - name: product-catalog-service
+      url: http://product-catalog-service.inventory-system.svc.cluster.local:80
+      routes:
+      - name: product-routes
+        paths:
+        - /api/products
+        - /api/categories
+        strip_path: false
+        protocols:
+        - http
+        - https
+      plugins:
+      - name: rate-limiting
+        config:
+          minute: 200
+          policy: local
+      - name: cors
+        config:
+          origins:
+          - "*"
+          methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+          headers:
+          - Accept
+          - Authorization
+          - Content-Type
+          credentials: true
+          max_age: 3600
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 5
+      - name: prometheus
+
+    - name: inventory-service
+      url: http://inventory-service.inventory-system.svc.cluster.local:80
+      routes:
+      - name: inventory-routes
+        paths:
+        - /api/inventory
+        - /api/stock
+        strip_path: false
+        protocols:
+        - http
+        - https
+      plugins:
+      - name: rate-limiting
+        config:
+          minute: 200
+          policy: local
+      - name: cors
+        config:
+          origins:
+          - "*"
+          methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+          headers:
+          - Accept
+          - Authorization
+          - Content-Type
+          credentials: true
+          max_age: 3600
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 5
+      - name: prometheus
+
+    - name: order-service
+      url: http://order-service.inventory-system.svc.cluster.local:80
+      routes:
+      - name: order-routes
+        paths:
+        - /api/orders
+        strip_path: false
+        protocols:
+        - http
+        - https
+      plugins:
+      - name: rate-limiting
+        config:
+          minute: 150
+          policy: local
+      - name: cors
+        config:
+          origins:
+          - "*"
+          methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+          headers:
+          - Accept
+          - Authorization
+          - Content-Type
+          credentials: true
+          max_age: 3600
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 5
+      - name: prometheus
+
+    - name: supplier-service
+      url: http://supplier-service.inventory-system.svc.cluster.local:80
+      routes:
+      - name: supplier-routes
+        paths:
+        - /api/suppliers
+        - /api/purchase-orders
+        strip_path: false
+        protocols:
+        - http
+        - https
+      plugins:
+      - name: rate-limiting
+        config:
+          minute: 100
+          policy: local
+      - name: cors
+        config:
+          origins:
+          - "*"
+          methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+          headers:
+          - Accept
+          - Authorization
+          - Content-Type
+          credentials: true
+          max_age: 3600
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 5
+      - name: prometheus
+
+    # Global plugins
+    plugins:
+    - name: prometheus
+      config:
+        per_consumer: false
+    - name: correlation-id
+      config:
+        header_name: X-Correlation-ID
+        generator: uuid
+        echo_downstream: true
