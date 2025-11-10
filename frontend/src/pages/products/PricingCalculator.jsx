@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "../../utils/axios";
 import Card from "../../components/common/Card";
 import Button from "../../components/common/Button";
@@ -9,6 +9,7 @@ const PricingCalculator = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pricingResult, setPricingResult] = useState(null);
+  const resultsRef = useRef(null);
 
   const [calculator, setCalculator] = useState({
     productId: "",
@@ -23,6 +24,15 @@ const PricingCalculator = () => {
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  const scrollToResults = () => {
+    setTimeout(() => {
+      resultsRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 100);
+  };
 
   const fetchProducts = async () => {
     try {
@@ -52,6 +62,7 @@ const PricingCalculator = () => {
         }
       );
       setPricingResult(res.data.data);
+      scrollToResults();
     } catch (error) {
       alert("Error calculating price: " + error.response?.data?.message);
     } finally {
@@ -79,6 +90,7 @@ const PricingCalculator = () => {
         }
       );
       setPricingResult(res.data.data);
+      scrollToResults();
     } catch (error) {
       alert("Error calculating bundle: " + error.response?.data?.message);
     } finally {
@@ -258,7 +270,7 @@ const PricingCalculator = () => {
 
       {/* Pricing Result */}
       {pricingResult && (
-        <Card>
+        <Card ref={resultsRef}>
           <div className="p-6">
             <h2 className="text-xl font-bold mb-4">Pricing Breakdown</h2>
 
