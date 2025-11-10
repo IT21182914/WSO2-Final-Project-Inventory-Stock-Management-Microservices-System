@@ -9,6 +9,11 @@ This folder contains all comprehensive documentation for the **Inventory Stock M
 - **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Quick reference guide for common tasks and commands
 - **[DOCKER_SETUP_SUMMARY.md](DOCKER_SETUP_SUMMARY.md)** - Docker setup and container management guide
 
+### ☁️ Cloud-Native & Production
+
+- **[ASSIGNMENT_IMPLEMENTATION_PLAN.md](ASSIGNMENT_IMPLEMENTATION_PLAN.md)** - 🎯 **COMPLETE ASSIGNMENT GUIDE** - Zero Trust, K8s (no EKS/AKS), 6-stage CI/CD, Prometheus, OpenSearch
+- **[CLOUD_NATIVE_ARCHITECTURE.md](CLOUD_NATIVE_ARCHITECTURE.md)** - General cloud-native migration guide (Kubernetes, AWS, API Gateway, Terraform, Grafana, Prometheus, CI/CD)
+
 ### 💼 Business Logic & Features
 
 - **[BUSINESS_LOGIC.md](BUSINESS_LOGIC.md)** - Detailed business logic and workflows
