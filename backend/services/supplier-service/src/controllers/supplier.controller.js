@@ -87,16 +87,6 @@ class SupplierController {
   async updateSupplier(req, res) {
     try {
       const { id } = req.params;
-      const errors = validationResult(req);
-
-      if (!errors.isEmpty()) {
-        logger.warn(`Supplier ${id} update validation failed:`, errors.array());
-        return res.status(400).json({
-          success: false,
-          message: "Validation failed",
-          errors: errors.array(),
-        });
-      }
 
       const supplier = await Supplier.update(id, req.body);
 
