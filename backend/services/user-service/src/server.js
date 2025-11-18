@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 3001;
 
 // Update database metrics every 30 seconds
 setInterval(() => {
-  updateDbMetrics(pool);
+  updateDbMetrics(pool.pool);
 }, 30000);
 
 // Security middleware

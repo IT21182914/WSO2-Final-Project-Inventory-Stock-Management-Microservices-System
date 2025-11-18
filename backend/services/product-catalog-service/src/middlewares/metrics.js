@@ -113,7 +113,11 @@ const metricsMiddleware = (req, res, next) => {
  * Update database connection pool metrics
  */
 const updateDbMetrics = (pool) => {
-  if (pool) {
+  if (
+    pool &&
+    typeof pool.totalCount === "number" &&
+    typeof pool.idleCount === "number"
+  ) {
     dbConnectionsActive.set(pool.totalCount - pool.idleCount);
     dbConnectionsIdle.set(pool.idleCount);
   }

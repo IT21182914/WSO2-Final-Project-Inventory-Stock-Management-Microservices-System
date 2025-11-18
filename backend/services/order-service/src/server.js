@@ -17,7 +17,7 @@ const app = express();
 const PORT = process.env.PORT || 3005;
 
 setInterval(() => {
-  updateDbMetrics(pool);
+  updateDbMetrics(pool.pool);
 }, 30000);
 
 // Middleware

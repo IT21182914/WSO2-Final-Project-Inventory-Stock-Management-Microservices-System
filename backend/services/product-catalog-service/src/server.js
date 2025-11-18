@@ -21,7 +21,7 @@ const PORT = process.env.PORT || 3002;
 
 // Update database metrics every 30 seconds
 setInterval(() => {
-  updateDbMetrics(pool);
+  updateDbMetrics(pool.pool);
 }, 30000);
 
 app.use(helmet());
