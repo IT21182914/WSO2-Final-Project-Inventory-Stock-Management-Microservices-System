@@ -79,12 +79,12 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       name: "Purchase Orders",
       path: "/purchase-orders",
       icon: ShoppingCart,
-      roles: ["admin", "warehouse_staff", "supplier"],
+      roles: ["admin", "warehouse_staff"],
     },
     {
-      name: "Rate Products",
-      path: "/product-ratings",
-      icon: Star,
+      name: "Purchase Requests",
+      path: "/purchase-requests",
+      icon: ShoppingCart,
       roles: ["supplier"],
     },
     {

@@ -39,7 +39,7 @@ import LowStockAlerts from "./pages/inventory/LowStockAlerts";
 // Supplier Pages
 import SupplierList from "./pages/suppliers/SupplierList";
 import PurchaseOrders from "./pages/suppliers/PurchaseOrders";
-import ProductRatings from "./pages/suppliers/ProductRatings";
+import PurchaseRequests from "./pages/suppliers/PurchaseRequests";
 import SupplierProfile from "./pages/suppliers/SupplierProfile";
 
 // Order Pages
@@ -218,18 +218,16 @@ function App() {
             <Route
               path="/purchase-orders"
               element={
-                <ProtectedRoute
-                  allowedRoles={["admin", "warehouse_staff", "supplier"]}
-                >
+                <ProtectedRoute allowedRoles={["admin", "warehouse_staff"]}>
                   <PurchaseOrders />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/product-ratings"
+              path="/purchase-requests"
               element={
                 <ProtectedRoute allowedRoles={["supplier"]}>
-                  <ProductRatings />
+                  <PurchaseRequests />
                 </ProtectedRoute>
               }
             />

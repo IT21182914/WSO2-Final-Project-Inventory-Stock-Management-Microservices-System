@@ -69,6 +69,12 @@ class PurchaseOrder {
       paramCount++;
     }
 
+    if (filters.supplier_response) {
+      query += ` AND po.supplier_response = $${paramCount}`;
+      values.push(filters.supplier_response);
+      paramCount++;
+    }
+
     query += " ORDER BY po.created_at DESC";
 
     if (filters.limit) {
@@ -114,6 +120,14 @@ class PurchaseOrder {
       "expected_delivery_date",
       "actual_delivery_date",
       "notes",
+      "supplier_response",
+      "requested_quantity",
+      "approved_quantity",
+      "rejection_reason",
+      "estimated_delivery_date",
+      "tracking_number",
+      "supplier_notes",
+      "responded_at",
     ];
     const fields = [];
     const values = [];

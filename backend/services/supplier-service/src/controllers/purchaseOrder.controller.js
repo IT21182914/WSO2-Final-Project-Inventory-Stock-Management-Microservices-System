@@ -234,6 +234,147 @@ class PurchaseOrderController {
       });
     }
   }
+
+  // New: Supplier responds to purchase request (approve/reject)
+  async respondToPurchaseRequest(req, res) {
+    try {
+      const { id } = req.params;
+      const {
+        response,
+        approved_quantity,
+        rejection_reason,
+        estimated_delivery_date,
+        supplier_notes,
+      } = req.body;
+
+      // Validate response
+      if (!["approved", "rejected", "partially_approved"].includes(response)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid response. Must be 'approved', 'rejected', or 'partially_approved'",
+        });
+      }
+
+      const updateData = {
+        supplier_response: response,
+        responded_at: new Date(),
+        supplier_notes,
+      };
+
+      if (response === "approved" || response === "partially_approved") {
+        updateData.approved_quantity = approved_quantity;
+        updateData.estimated_delivery_date = estimated_delivery_date;
+        updateData.status = "confirmed";
+      } else if (response === "rejected") {
+        updateData.rejection_reason = rejection_reason;
+        updateData.status = "rejected";
+      }
+
+      const updatedPO = await PurchaseOrder.update(id, updateData);
+
+      logger.info(`Purchase order ${id} ${response} by supplier`);
+
+      res.json({
+        success: true,
+        message: `Purchase request ${response} successfully`,
+        data: updatedPO,
+      });
+    } catch (error) {
+      logger.error("Respond to purchase request error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Error responding to purchase request",
+        error: error.message,
+      });
+    }
+  }
+
+  // New: Supplier updates shipment status
+  async updateShipmentStatus(req, res) {
+    try {
+      const { id } = req.params;
+      const { status, tracking_number, actual_delivery_date } = req.body;
+
+      const updateData = { status };
+      if (tracking_number) updateData.tracking_number = tracking_number;
+      if (actual_delivery_date)
+        updateData.actual_delivery_date = actual_delivery_date;
+
+      const updatedPO = await PurchaseOrder.update(id, updateData);
+
+      logger.info(`Purchase order ${id} shipment status updated to ${status}`);
+
+      res.json({
+        success: true,
+        message: "Shipment status updated successfully",
+        data: updatedPO,
+      });
+    } catch (error) {
+      logger.error("Update shipment status error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Error updating shipment status",
+        error: error.message,
+      });
+    }
+  }
+
+  // New: Warehouse confirms receipt
+  async confirmReceipt(req, res) {
+    try {
+      const { id } = req.params;
+      const { received_items, notes } = req.body;
+
+      const updateData = {
+        status: "received",
+        actual_delivery_date: new Date(),
+        notes: notes || "",
+      };
+
+      const updatedPO = await PurchaseOrder.update(id, updateData);
+
+      logger.info(`Purchase order ${id} marked as received`);
+
+      res.json({
+        success: true,
+        message: "Purchase order receipt confirmed",
+        data: updatedPO,
+      });
+    } catch (error) {
+      logger.error("Confirm receipt error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Error confirming receipt",
+        error: error.message,
+      });
+    }
+  }
+
+  // New: Get pending requests for supplier
+  async getSupplierPendingRequests(req, res) {
+    try {
+      const { supplier_id } = req.params;
+
+      const pendingRequests = await PurchaseOrder.findAll({
+        supplier_id: parseInt(supplier_id),
+        supplier_response: "pending",
+      });
+
+      res.json({
+        success: true,
+        count: pendingRequests.length,
+        data: pendingRequests,
+      });
+    } catch (error) {
+      logger.error("Get supplier pending requests error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Error fetching pending requests",
+        error: error.message,
+      });
+    }
+  }
 }
 
 module.exports = new PurchaseOrderController();
