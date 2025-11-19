@@ -12,6 +12,7 @@ const {
 } = require("./middlewares/metrics");
 const supplierRoutes = require("./routes/supplier.routes");
 const purchaseOrderRoutes = require("./routes/purchaseOrder.routes");
+const supplierRatingRoutes = require("./routes/supplierRating.routes");
 const {
   errorHandler,
   notFoundHandler,
@@ -53,6 +54,7 @@ app.get("/metrics", async (req, res) => {
 
 // API Routes
 app.use("/api/suppliers", supplierRoutes);
+app.use("/api/suppliers", supplierRatingRoutes);
 app.use("/api/purchase-orders", purchaseOrderRoutes);
 
 // Error handling

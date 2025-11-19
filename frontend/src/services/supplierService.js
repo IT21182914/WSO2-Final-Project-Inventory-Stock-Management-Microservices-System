@@ -105,4 +105,43 @@ export const supplierService = {
     );
     return response.data;
   },
+
+  // Supplier Ratings
+  createSupplierRating: async (supplierId, ratingData) => {
+    const response = await supplierApi.post(
+      `${API_ENDPOINTS.SUPPLIERS}/${supplierId}/ratings`,
+      ratingData
+    );
+    return response.data;
+  },
+
+  getSupplierRatings: async (supplierId, params) => {
+    const response = await supplierApi.get(
+      `${API_ENDPOINTS.SUPPLIERS}/${supplierId}/ratings`,
+      { params }
+    );
+    return response.data;
+  },
+
+  getSupplierRatingStats: async (supplierId) => {
+    const response = await supplierApi.get(
+      `${API_ENDPOINTS.SUPPLIERS}/${supplierId}/rating-stats`
+    );
+    return response.data;
+  },
+
+  updateSupplierRating: async (ratingId, ratingData) => {
+    const response = await supplierApi.put(
+      `${API_ENDPOINTS.SUPPLIERS}/ratings/${ratingId}`,
+      ratingData
+    );
+    return response.data;
+  },
+
+  deleteSupplierRating: async (ratingId) => {
+    const response = await supplierApi.delete(
+      `${API_ENDPOINTS.SUPPLIERS}/ratings/${ratingId}`
+    );
+    return response.data;
+  },
 };

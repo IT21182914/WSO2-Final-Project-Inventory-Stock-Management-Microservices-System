@@ -145,6 +145,23 @@ const SupplierList = () => {
       ),
     },
     {
+      header: "Rating",
+      accessor: "average_rating",
+      render: (row) => (
+        <div className="flex items-center gap-1">
+          <span className="text-yellow-400">★</span>
+          <span className="font-medium">
+            {row.average_rating
+              ? parseFloat(row.average_rating).toFixed(2)
+              : "N/A"}
+          </span>
+          {row.total_ratings > 0 && (
+            <span className="text-xs text-gray-500">({row.total_ratings})</span>
+          )}
+        </div>
+      ),
+    },
+    {
       header: "Actions",
       accessor: "actions",
       render: (row) => (

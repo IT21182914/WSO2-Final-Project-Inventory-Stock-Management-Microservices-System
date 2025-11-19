@@ -7,7 +7,7 @@ import Badge from "../../components/common/Badge";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import Input from "../../components/common/Input";
 import { supplierService } from "../../services/supplierService";
-import { FiPlus, FiEdit, FiTrash2, FiFilter } from "react-icons/fi";
+import { FiPlus, FiEdit, FiTrash2, FiFilter, FiStar } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 
 const PurchaseOrders = () => {
@@ -19,8 +19,17 @@ const PurchaseOrders = () => {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [selectedPOForRating, setSelectedPOForRating] = useState(null);
   const [editingPO, setEditingPO] = useState(null);
   const [filter, setFilter] = useState({ status: "", supplier_id: "" });
+  const [ratingData, setRatingData] = useState({
+    rating: 5,
+    quality_rating: 5,
+    delivery_rating: 5,
+    communication_rating: 5,
+    comments: "",
+  });
   const [formData, setFormData] = useState({
     supplier_id: "",
     order_date: new Date().toISOString().split("T")[0],
@@ -160,6 +169,39 @@ const PurchaseOrders = () => {
     }
   };
 
+  const handleRateSupplier = (po) => {
+    setSelectedPOForRating(po);
+    setRatingData({
+      rating: 5,
+      quality_rating: 5,
+      delivery_rating: 5,
+      communication_rating: 5,
+      comments: "",
+    });
+    setShowRatingModal(true);
+  };
+
+  const submitRating = async (e) => {
+    e.preventDefault();
+    try {
+      await supplierService.createSupplierRating(
+        selectedPOForRating.supplier_id,
+        {
+          purchase_order_id: selectedPOForRating.id,
+          ...ratingData,
+        }
+      );
+      toast.success("Supplier rated successfully!");
+      setShowRatingModal(false);
+      fetchPurchaseOrders();
+    } catch (error) {
+      console.error("Error rating supplier:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to rate supplier"
+      );
+    }
+  };
+
   const getStatusBadge = (status) => {
     const variants = {
       pending: "warning",
@@ -167,8 +209,12 @@ const PurchaseOrders = () => {
       ordered: "primary",
       received: "success",
       cancelled: "danger",
+      confirmed: "info",
+      shipped: "primary",
+      rejected: "danger",
     };
     return <Badge variant={variants[status] || "default"}>{status}</Badge>;
+  };
   };
 
   const getSupplierName = (supplierId) => {
@@ -238,6 +284,15 @@ const PurchaseOrders = () => {
               onClick={() => handleStatusUpdate(row.id, "received")}
             >
               Confirm Receipt
+            </Button>
+          )}
+          {row.status === "received" && canManagePO && (
+            <Button
+              size="sm"
+              variant="warning"
+              onClick={() => handleRateSupplier(row)}
+            >
+              <FiStar className="mr-1" /> Rate
             </Button>
           )}
           {canManagePO && (
@@ -439,6 +494,165 @@ const PurchaseOrders = () => {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Rating Modal */}
+      {showRatingModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="max-w-lg w-full m-4">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold mb-4">Rate Supplier</h2>
+              <form onSubmit={submitRating}>
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-2">
+                    <span className="font-medium">PO:</span>{" "}
+                    {selectedPOForRating?.po_number}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Supplier:</span>{" "}
+                    {getSupplierName(selectedPOForRating?.supplier_id)}
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Overall Rating (1-5 stars)
+                    </label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() =>
+                            setRatingData({ ...ratingData, rating: star })
+                          }
+                          className={`text-3xl ${
+                            star <= ratingData.rating
+                              ? "text-yellow-400"
+                              : "text-gray-300"
+                          }`}
+                        >
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Product Quality (1-5 stars)
+                    </label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() =>
+                            setRatingData({
+                              ...ratingData,
+                              quality_rating: star,
+                            })
+                          }
+                          className={`text-2xl ${
+                            star <= ratingData.quality_rating
+                              ? "text-yellow-400"
+                              : "text-gray-300"
+                          }`}
+                        >
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Delivery Timeliness (1-5 stars)
+                    </label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() =>
+                            setRatingData({
+                              ...ratingData,
+                              delivery_rating: star,
+                            })
+                          }
+                          className={`text-2xl ${
+                            star <= ratingData.delivery_rating
+                              ? "text-yellow-400"
+                              : "text-gray-300"
+                          }`}
+                        >
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Communication (1-5 stars)
+                    </label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() =>
+                            setRatingData({
+                              ...ratingData,
+                              communication_rating: star,
+                            })
+                          }
+                          className={`text-2xl ${
+                            star <= ratingData.communication_rating
+                              ? "text-yellow-400"
+                              : "text-gray-300"
+                          }`}
+                        >
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Comments (Optional)
+                    </label>
+                    <textarea
+                      value={ratingData.comments}
+                      onChange={(e) =>
+                        setRatingData({
+                          ...ratingData,
+                          comments: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      rows="3"
+                      placeholder="Share your experience with this supplier..."
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowRatingModal(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit">Submit Rating</Button>
+                </div>
+              </form>
+            </div>
+          </Card>
         </div>
       )}
     </div>
