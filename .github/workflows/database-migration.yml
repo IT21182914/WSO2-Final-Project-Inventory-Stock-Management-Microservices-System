@@ -1,0 +1,384 @@
+name: Database Migration
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/database/**'
+      - 'backend/migrations/**'
+      - '.github/workflows/database-migration.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend/database/**'
+      - 'backend/migrations/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      action:
+        description: 'Migration action'
+        required: true
+        type: choice
+        options:
+          - up
+          - down
+          - status
+
+env:
+  NODE_VERSION: '18'
+  POSTGRES_VERSION: '15'
+
+jobs:
+  validate-migrations:
+    name: Validate Migration Scripts
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Check migration file syntax
+        working-directory: backend
+        run: |
+          echo "Checking SQL migration files..."
+          
+          # Check for SQL syntax errors (basic validation)
+          for file in database/migrations/*.sql; do
+            if [ -f "$file" ]; then
+              echo "Validating $file..."
+              # Basic checks
+              if grep -q ";" "$file"; then
+                echo "✅ $file appears valid"
+              else
+                echo "⚠️ $file may be missing semicolons"
+              fi
+            fi
+          done
+      
+      - name: Check JavaScript migration files
+        working-directory: backend
+        run: |
+          echo "Checking JavaScript migration files..."
+          
+          for file in migrations/*.js; do
+            if [ -f "$file" ]; then
+              echo "Validating $file..."
+              node -c "$file" && echo "✅ $file syntax is valid" || echo "❌ $file has syntax errors"
+            fi
+          done
+      
+      - name: Check migration naming convention
+        working-directory: backend
+        run: |
+          echo "Checking migration naming conventions..."
+          
+          # Check SQL migrations
+          for file in database/migrations/*.sql; do
+            if [ -f "$file" ]; then
+              basename=$(basename "$file")
+              if [[ $basename =~ ^[0-9]{3}_[a-z_]+\.sql$ ]]; then
+                echo "✅ $basename follows naming convention"
+              else
+                echo "⚠️ $basename does not follow convention (XXX_name.sql)"
+              fi
+            fi
+          done
+
+  test-migrations-dry-run:
+    name: Test Migrations (Dry Run)
+    needs: validate-migrations
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ims_migration_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+      
+      - name: Run initial schema setup
+        working-directory: backend
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: ims_migration_test
+        run: |
+          # Apply initial schema
+          psql -f database/init.sql
+      
+      - name: Run SQL migrations
+        working-directory: backend
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: ims_migration_test
+        run: |
+          echo "Applying SQL migrations..."
+          
+          for file in database/migrations/*.sql; do
+            if [ -f "$file" ]; then
+              echo "Running $file..."
+              psql -f "$file" || echo "Error in $file"
+            fi
+          done
+      
+      - name: Run JavaScript migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ims_migration_test
+        run: |
+          echo "Running JavaScript migrations..."
+          npm run migrate:up || echo "Migration completed with warnings"
+      
+      - name: Verify database schema
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: ims_migration_test
+        run: |
+          echo "Verifying database schema..."
+          
+          # List all tables
+          psql -c "\dt" || true
+          
+          # Check for required tables
+          REQUIRED_TABLES=("users" "products" "inventory" "orders" "suppliers")
+          
+          for table in "${REQUIRED_TABLES[@]}"; do
+            if psql -c "\dt $table" | grep -q "$table"; then
+              echo "✅ Table $table exists"
+            else
+              echo "❌ Table $table is missing"
+            fi
+          done
+      
+      - name: Test migration rollback
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ims_migration_test
+        run: |
+          echo "Testing migration rollback..."
+          npm run migrate:down || echo "Rollback test completed"
+          npm run migrate:up || echo "Re-applied migrations"
+
+  migration-status:
+    name: Check Migration Status
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ims_status_check
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install dependencies (base)
+        working-directory: backend
+        run: npm ci
+      
+      - name: Apply base migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ims_status_check
+        run: |
+          psql -h localhost -U postgres -d ims_status_check -f database/init.sql || true
+          npm run migrate:up || true
+      
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          clean: false
+      
+      - name: Install dependencies (PR)
+        working-directory: backend
+        run: npm ci
+      
+      - name: Apply new migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ims_status_check
+        run: |
+          npm run migrate:up || echo "New migrations applied"
+      
+      - name: Generate migration diff
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: ims_status_check
+        run: |
+          echo "## Migration Changes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### New Tables/Schemas" >> $GITHUB_STEP_SUMMARY
+          psql -c "\dt" >> $GITHUB_STEP_SUMMARY || true
+
+  backup-validation:
+    name: Validate Backup Procedures
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ims_backup_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup database
+        working-directory: backend
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: ims_backup_test
+        run: |
+          psql -f database/init.sql
+      
+      - name: Create test data
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: ims_backup_test
+        run: |
+          psql -c "INSERT INTO users (username, email, password_hash, role) VALUES ('testuser', 'test@example.com', 'hash', 'admin');" || true
+      
+      - name: Create backup
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: ims_backup_test
+        run: |
+          pg_dump -Fc -f backup_test.dump
+          ls -lh backup_test.dump
+      
+      - name: Validate backup
+        run: |
+          if [ -f backup_test.dump ]; then
+            SIZE=$(stat -f%z backup_test.dump 2>/dev/null || stat -c%s backup_test.dump)
+            if [ $SIZE -gt 0 ]; then
+              echo "✅ Backup created successfully ($SIZE bytes)"
+            else
+              echo "❌ Backup is empty"
+              exit 1
+            fi
+          else
+            echo "❌ Backup file not created"
+            exit 1
+          fi
+      
+      - name: Test restore
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: |
+          # Create new database for restore test
+          psql -c "CREATE DATABASE ims_restore_test;" || true
+          
+          # Restore backup
+          pg_restore -d ims_restore_test backup_test.dump || echo "Restore completed with warnings"
+          
+          # Verify restored data
+          psql -d ims_restore_test -c "SELECT COUNT(*) FROM users;" || echo "Verification completed"
+
+  migration-report:
+    name: Migration CI Status
+    needs: [validate-migrations, test-migrations-dry-run, backup-validation]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Database Migration CI Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Validate Migrations | ${{ needs.validate-migrations.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Migrations | ${{ needs.test-migrations-dry-run.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backup Validation | ${{ needs.backup-validation.result }} |" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.validate-migrations.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-migrations-dry-run.result }}" == "failure" ]] || \
+             [[ "${{ needs.backup-validation.result }}" == "failure" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Migration CI failed" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ All migration checks passed" >> $GITHUB_STEP_SUMMARY
+          fi

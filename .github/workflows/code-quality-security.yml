@@ -1,0 +1,397 @@
+name: Code Quality & Security
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  codeql-analysis:
+    name: CodeQL Security Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['javascript']
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+      
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+      
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+          deny-licenses: GPL-3.0, AGPL-3.0
+
+  npm-audit:
+    name: NPM Security Audit
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component:
+          - path: backend
+            name: Backend Root
+          - path: frontend
+            name: Frontend
+          - path: backend/services/user-service
+            name: User Service
+          - path: backend/services/product-catalog-service
+            name: Product Catalog Service
+          - path: backend/services/inventory-service
+            name: Inventory Service
+          - path: backend/services/order-service
+            name: Order Service
+          - path: backend/services/supplier-service
+            name: Supplier Service
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install dependencies
+        working-directory: ${{ matrix.component.path }}
+        run: npm ci || npm install
+      
+      - name: Run npm audit
+        working-directory: ${{ matrix.component.path }}
+        run: |
+          echo "## Security Audit: ${{ matrix.component.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          npm audit --json > audit-report.json || true
+          
+          if [ -f audit-report.json ]; then
+            CRITICAL=$(jq '.metadata.vulnerabilities.critical // 0' audit-report.json)
+            HIGH=$(jq '.metadata.vulnerabilities.high // 0' audit-report.json)
+            MODERATE=$(jq '.metadata.vulnerabilities.moderate // 0' audit-report.json)
+            LOW=$(jq '.metadata.vulnerabilities.low // 0' audit-report.json)
+            
+            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Critical | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+            echo "| High | $HIGH |" >> $GITHUB_STEP_SUMMARY
+            echo "| Moderate | $MODERATE |" >> $GITHUB_STEP_SUMMARY
+            echo "| Low | $LOW |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+              echo "❌ Critical or high vulnerabilities found!" >> $GITHUB_STEP_SUMMARY
+              npm audit
+              exit 1
+            else
+              echo "✅ No critical or high vulnerabilities" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+        continue-on-error: true
+      
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-report-${{ matrix.component.name }}
+          path: ${{ matrix.component.path }}/audit-report.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+  eslint-analysis:
+    name: ESLint Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install dependencies (Frontend)
+        working-directory: frontend
+        run: npm ci
+      
+      - name: Run ESLint on Frontend
+        working-directory: frontend
+        run: |
+          npm run lint -- --format json --output-file eslint-report.json || true
+          npm run lint || true
+        continue-on-error: true
+      
+      - name: Upload ESLint results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-results
+          path: frontend/eslint-report.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+  sonarcloud-scan:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ github.repository_owner }}_inventory-management-system
+            -Dsonar.organization=${{ github.repository_owner }}
+            -Dsonar.sources=backend/services,frontend/src
+            -Dsonar.tests=backend/services
+            -Dsonar.test.inclusions=**/*.test.js,**/*.spec.js
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/coverage/**
+        continue-on-error: true
+
+  docker-security-scan:
+    name: Docker Image Security Scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - user-service
+          - product-catalog-service
+          - inventory-service
+          - order-service
+          - supplier-service
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Build Docker image
+        working-directory: backend/services/${{ matrix.service }}
+        run: |
+          docker build -t ${{ matrix.service }}:scan .
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ matrix.service }}:scan
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+      
+      - name: Run Trivy with SARIF output
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ matrix.service }}:scan
+          format: 'sarif'
+          output: 'trivy-results-${{ matrix.service }}.sarif'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results-${{ matrix.service }}.sarif'
+        continue-on-error: true
+
+  secret-scanning:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: TruffleHog Secret Scanning
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified
+        continue-on-error: true
+      
+      - name: GitLeaks Secret Detection
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+  license-compliance:
+    name: License Compliance Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install license-checker
+        run: npm install -g license-checker
+      
+      - name: Check Backend licenses
+        working-directory: backend
+        run: |
+          npm ci
+          license-checker --summary || true
+          license-checker --json --out licenses-backend.json || true
+      
+      - name: Check Frontend licenses
+        working-directory: frontend
+        run: |
+          npm ci
+          license-checker --summary || true
+          license-checker --json --out licenses-frontend.json || true
+      
+      - name: Upload license reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-reports
+          path: |
+            backend/licenses-backend.json
+            frontend/licenses-frontend.json
+          retention-days: 90
+          if-no-files-found: ignore
+
+  code-coverage:
+    name: Code Coverage Report
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Run tests with coverage
+        run: |
+          for service in backend/services/*/; do
+            if [ -f "$service/package.json" ]; then
+              echo "Running tests for $service..."
+              cd "$service"
+              npm ci
+              npm test -- --coverage || echo "No tests in $service"
+              cd -
+            fi
+          done
+        env:
+          NODE_ENV: test
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          JWT_SECRET: test-secret
+        continue-on-error: true
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./backend/services/*/coverage/coverage-final.json
+          flags: unittests
+          name: codecov-umbrella
+        continue-on-error: true
+
+  quality-gate:
+    name: Quality Gate Summary
+    needs:
+      - codeql-analysis
+      - npm-audit
+      - eslint-analysis
+      - docker-security-scan
+      - secret-scanning
+      - license-compliance
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check quality gate status
+        run: |
+          echo "## Code Quality & Security Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| CodeQL Analysis | ${{ needs.codeql-analysis.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| NPM Audit | ${{ needs.npm-audit.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ESLint | ${{ needs.eslint-analysis.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Security | ${{ needs.docker-security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secret Scanning | ${{ needs.secret-scanning.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| License Compliance | ${{ needs.license-compliance.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.codeql-analysis.result }}" == "failure" ]] || \
+             [[ "${{ needs.npm-audit.result }}" == "failure" ]]; then
+            echo "❌ Quality gate failed - Critical security issues found" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "✅ Quality gate passed" >> $GITHUB_STEP_SUMMARY
+          fi

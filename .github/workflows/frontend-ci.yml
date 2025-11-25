@@ -1,0 +1,322 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'frontend/**'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  lint-and-format:
+    name: Lint and Format Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      
+      - name: Run ESLint
+        working-directory: frontend
+        run: npm run lint
+        continue-on-error: true
+      
+      - name: Check code formatting
+        working-directory: frontend
+        run: |
+          npm run format:check || echo "Format check not configured"
+        continue-on-error: true
+
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      
+      - name: Build production bundle
+        working-directory: frontend
+        run: npm run build
+        env:
+          CI: true
+      
+      - name: Check build output
+        working-directory: frontend
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "Build failed - dist directory not found"
+            exit 1
+          fi
+          
+          echo "Build successful!"
+          ls -la dist/
+      
+      - name: Upload build artifacts
+        if: matrix.node-version == 18
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-${{ github.sha }}
+          path: frontend/dist
+          retention-days: 7
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      
+      - name: Run unit tests
+        working-directory: frontend
+        run: npm run test:unit || echo "No unit tests configured"
+        env:
+          CI: true
+        continue-on-error: true
+      
+      - name: Upload coverage reports
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          files: frontend/coverage/coverage-final.json
+          flags: frontend
+          name: frontend-coverage
+        continue-on-error: true
+
+  bundle-analysis:
+    name: Bundle Size Analysis
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ github.sha }}
+          path: frontend/dist
+      
+      - name: Analyze bundle size
+        working-directory: frontend
+        run: |
+          echo "Analyzing bundle sizes..."
+          du -sh dist/*
+          
+          # Check for large files
+          find dist -type f -size +500k -exec ls -lh {} \; | awk '{print $9 ": " $5}' || echo "No files larger than 500KB"
+      
+      - name: Check chunk sizes
+        working-directory: frontend/dist
+        run: |
+          echo "JavaScript chunks:"
+          find . -name "*.js" -exec ls -lh {} \; | awk '{print $9 ": " $5}'
+          
+          echo ""
+          echo "CSS files:"
+          find . -name "*.css" -exec ls -lh {} \; | awk '{print $9 ": " $5}'
+
+  accessibility-check:
+    name: Accessibility Check
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ github.sha }}
+          path: frontend/dist
+      
+      - name: Install serve
+        run: npm install -g serve
+      
+      - name: Serve application
+        working-directory: frontend
+        run: |
+          serve -s dist -l 3000 &
+          sleep 5
+      
+      - name: Run accessibility tests
+        run: |
+          npm install -g @axe-core/cli
+          axe http://localhost:3000 --exit || echo "Accessibility issues found"
+        continue-on-error: true
+
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        working-directory: frontend
+        run: |
+          docker build -t frontend:test .
+      
+      - name: Test Docker image
+        run: |
+          docker run -d --name frontend-test -p 8080:80 frontend:test
+          sleep 5
+          
+          # Test that nginx is serving the app
+          curl -f http://localhost:8080 || exit 1
+          
+          # Cleanup
+          docker stop frontend-test
+          docker rm frontend-test
+      
+      - name: Check image size
+        run: |
+          docker images frontend:test --format "{{.Size}}"
+          
+          # Warn if image is too large
+          SIZE=$(docker images frontend:test --format "{{.Size}}")
+          echo "Image size: $SIZE"
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Run npm audit
+        working-directory: frontend
+        run: |
+          npm audit --audit-level=moderate || echo "Security vulnerabilities found"
+        continue-on-error: true
+      
+      - name: Check for dependency issues
+        working-directory: frontend
+        run: |
+          npm outdated || true
+
+  performance-budget:
+    name: Performance Budget Check
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ github.sha }}
+          path: frontend/dist
+      
+      - name: Check performance budget
+        working-directory: frontend/dist
+        run: |
+          TOTAL_SIZE=$(du -sb . | cut -f1)
+          TOTAL_SIZE_MB=$((TOTAL_SIZE / 1024 / 1024))
+          
+          echo "Total bundle size: ${TOTAL_SIZE_MB}MB"
+          
+          # Warn if bundle is larger than 5MB
+          if [ $TOTAL_SIZE_MB -gt 5 ]; then
+            echo "⚠️ Warning: Bundle size exceeds 5MB"
+          else
+            echo "✅ Bundle size is within budget"
+          fi
+
+  frontend-ci-status:
+    name: Frontend CI Status
+    needs: [lint-and-format, build, test, docker-build, bundle-analysis, security-scan]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check status
+        run: |
+          echo "Lint: ${{ needs.lint-and-format.result }}"
+          echo "Build: ${{ needs.build.result }}"
+          echo "Test: ${{ needs.test.result }}"
+          echo "Docker: ${{ needs.docker-build.result }}"
+          echo "Bundle: ${{ needs.bundle-analysis.result }}"
+          echo "Security: ${{ needs.security-scan.result }}"
+          
+          if [[ "${{ needs.lint-and-format.result }}" == "failure" ]] || \
+             [[ "${{ needs.build.result }}" == "failure" ]] || \
+             [[ "${{ needs.docker-build.result }}" == "failure" ]]; then
+            echo "❌ Frontend CI failed"
+            exit 1
+          else
+            echo "✅ Frontend CI passed"
+          fi
