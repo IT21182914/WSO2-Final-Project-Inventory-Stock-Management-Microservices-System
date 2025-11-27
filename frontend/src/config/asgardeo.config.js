@@ -8,21 +8,43 @@
  * 4. Copy Client ID to .env file
  */
 
+// Debug: Log environment variables
+console.log("🔧 Asgardeo Config Debug:");
+console.log(
+  "  VITE_ASGARDEO_BASE_URL:",
+  import.meta.env.VITE_ASGARDEO_BASE_URL
+);
+console.log(
+  "  VITE_ASGARDEO_CLIENT_ID:",
+  import.meta.env.VITE_ASGARDEO_CLIENT_ID
+);
+console.log("  VITE_APP_URL:", import.meta.env.VITE_APP_URL);
+
+const baseUrl =
+  import.meta.env.VITE_ASGARDEO_BASE_URL ||
+  "https://api.asgardeo.io/t/dilanorg";
+const clientID = import.meta.env.VITE_ASGARDEO_CLIENT_ID;
+const redirectURL = import.meta.env.VITE_APP_URL || "http://localhost:5173";
+
+if (!clientID) {
+  console.error(
+    "❌ VITE_ASGARDEO_CLIENT_ID is not set in environment variables!"
+  );
+}
+
 export const asgardeoConfig = {
   // Your Asgardeo organization name (from yourorg.asgardeo.io)
-  baseUrl:
-    import.meta.env.VITE_ASGARDEO_BASE_URL ||
-    "https://api.asgardeo.io/t/dilanorg",
+  baseUrl: baseUrl,
 
   // Client ID from Asgardeo console
-  clientID: import.meta.env.VITE_ASGARDEO_CLIENT_ID,
+  clientID: clientID,
 
   // Redirect URLs
-  signInRedirectURL: import.meta.env.VITE_APP_URL || "http://localhost:5173",
-  signOutRedirectURL: import.meta.env.VITE_APP_URL || "http://localhost:5173",
+  signInRedirectURL: redirectURL,
+  signOutRedirectURL: redirectURL,
 
   // OAuth scopes
-  scope: ["openid", "profile", "email"],
+  scope: ["openid", "profile", "email", "groups"],
 
   // Enable PKCE (recommended for SPAs)
   enablePKCE: true,
@@ -39,5 +61,10 @@ export const asgardeoConfig = {
   // Clock tolerance for token validation (in seconds)
   clockTolerance: 60,
 };
+
+console.log("✅ Asgardeo Config Created:");
+console.log("  Base URL:", asgardeoConfig.baseUrl);
+console.log("  Client ID:", asgardeoConfig.clientID ? "Set ✓" : "Missing ✗");
+console.log("  Redirect URL:", asgardeoConfig.signInRedirectURL);
 
 export default asgardeoConfig;
