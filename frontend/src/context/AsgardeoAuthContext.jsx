@@ -26,8 +26,43 @@ export const AsgardeoAuthProvider = ({ children }) => {
     getBasicUserInfo,
     getIDToken,
     getAccessToken,
+    getDecodedIDToken,
     on,
   } = useAuthContext();
+
+  // Helper function to get actual JWT access token from sessionStorage
+  const getRealAccessToken = async () => {
+    try {
+      // Try multiple methods to get the actual JWT token
+
+      // Method 1: Try getIDToken (ID tokens are JWTs)
+      const idToken = await getIDToken();
+      if (idToken && idToken.length > 100 && idToken.startsWith("ey")) {
+        console.log("✅ Using ID Token as access token (JWT format)");
+        return idToken;
+      }
+
+      // Method 2: Check sessionStorage for access token
+      const sessionData = sessionStorage.getItem(
+        `session_data-${import.meta.env.VITE_ASGARDEO_CLIENT_ID}`
+      );
+      if (sessionData) {
+        const parsed = JSON.parse(sessionData);
+        if (parsed.access_token && parsed.access_token.length > 100) {
+          console.log("✅ Found JWT access token in sessionStorage");
+          return parsed.access_token;
+        }
+      }
+
+      // Method 3: Try getAccessToken() anyway
+      const accessToken = await getAccessToken();
+      console.log("⚠️ Falling back to getAccessToken() result");
+      return accessToken;
+    } catch (error) {
+      console.error("❌ Error getting access token:", error);
+      return null;
+    }
+  };
 
   // Sync Asgardeo state with our user state
   useEffect(() => {
@@ -40,11 +75,16 @@ export const AsgardeoAuthProvider = ({ children }) => {
           const basicUserInfo = await getBasicUserInfo();
           console.log("👤 Basic user info:", basicUserInfo);
 
-          const accessToken = await getAccessToken();
+          // Get actual JWT access token
+          const accessToken = await getRealAccessToken();
+          console.log("🔑 Access token debug:");
+          console.log("  Type:", typeof accessToken);
+          console.log("  Length:", accessToken?.length);
           console.log(
-            "🔑 Access token:",
-            accessToken ? "Received" : "Not received"
+            "  Preview:",
+            accessToken ? `${accessToken.substring(0, 100)}...` : "None"
           );
+          console.log("  Is JWT?", accessToken?.startsWith("ey") || false);
 
           // Map Asgardeo user to our user format
           const mappedUser = {
@@ -204,7 +244,7 @@ export const AsgardeoAuthProvider = ({ children }) => {
       return user.role === roles;
     },
     // Expose Asgardeo methods for advanced use
-    getAccessToken,
+    getAccessToken: getRealAccessToken, // Use our custom function
     getIDToken,
     asgardeoState: state,
   };

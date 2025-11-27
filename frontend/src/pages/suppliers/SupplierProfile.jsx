@@ -25,18 +25,27 @@ const SupplierProfile = () => {
     try {
       setLoading(true);
 
-      // Check if token exists
-      const token = localStorage.getItem("token");
+      // Check if token exists (Asgardeo or legacy JWT)
+      const asgardeoToken = localStorage.getItem("asgardeo_token");
+      const jwtToken = localStorage.getItem("token");
+      const token = asgardeoToken || jwtToken;
+
+      console.log("🔍 Token Debug:");
+      console.log("  asgardeo_token exists:", !!asgardeoToken);
+      console.log("  legacy token exists:", !!jwtToken);
+      console.log(
+        "  Selected token:",
+        token ? `${token.substring(0, 50)}...` : "None"
+      );
+      console.log("  Token length:", token?.length);
+
       if (!token) {
-        console.error("No authentication token found");
+        console.error("❌ No authentication token found");
         toast.error("Please login to view your profile");
         return;
       }
 
-      console.log(
-        "Fetching profile with token:",
-        token ? "Token exists" : "No token"
-      );
+      console.log("📤 Sending request with Authorization header");
 
       const response = await fetch(
         "http://localhost:3004/api/suppliers/profile/me",
