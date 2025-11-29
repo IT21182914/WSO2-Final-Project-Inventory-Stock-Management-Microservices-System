@@ -1,0 +1,80 @@
+# ============================================================================
+# TERRAFORM CONFIGURATION VALUES
+# Copy this file to terraform.tfvars and customize for your environment
+# ============================================================================
+
+# ============================================================================
+# GENERAL SETTINGS
+# ============================================================================
+
+environment  = "staging"
+cluster_name = "inventory-k8s-cluster"
+aws_region   = "us-east-1"
+
+# ============================================================================
+# NETWORKING
+# ============================================================================
+
+vpc_cidr             = "10.0.0.0/16"
+availability_zones   = ["us-east-1a", "us-east-1b"]
+public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs = ["10.0.10.0/24", "10.0.20.0/24"]
+
+pod_network_cidr = "10.244.0.0/16"
+service_cidr     = "10.96.0.0/12"
+cluster_domain   = "cluster.local"
+
+# ============================================================================
+# SECURITY - CHANGE THESE FOR PRODUCTION!
+# ============================================================================
+
+# Replace with your IP: curl ifconfig.me
+allowed_ssh_cidr_blocks     = ["0.0.0.0/0"] # YOUR_IP/32 for security
+allowed_k8s_api_cidr_blocks = ["0.0.0.0/0"] # YOUR_IP/32 for security
+
+# SSH key name (create in AWS EC2 console first)
+ssh_key_name = "k8s-cluster-key"
+ssh_user     = "ubuntu"
+
+# ============================================================================
+# MASTER NODES
+# ============================================================================
+
+master_node_count    = 1 # Set to 3 for HA
+master_instance_type = "t3.medium" # 2 vCPU, 4 GB RAM
+
+# ============================================================================
+# WORKER NODES
+# ============================================================================
+
+worker_node_count    = 2
+worker_instance_type = "t3.medium" # 2 vCPU, 4 GB RAM
+
+# ============================================================================
+# STORAGE
+# ============================================================================
+
+root_volume_size = 30 # GB
+data_volume_size = 50 # GB
+
+persistent_volume_size  = 20   # GB per volume
+persistent_volume_count = 5    # Number of PVs
+persistent_volume_type  = "gp3" # gp2, gp3, io1, io2
+
+# ============================================================================
+# KUBERNETES DISTRIBUTION
+# ============================================================================
+
+k8s_distribution = "k3s" # Options: k3s, kubeadm, rke2
+k8s_version      = "v1.28.5"
+
+# ============================================================================
+# ADDITIONAL TAGS (Optional)
+# ============================================================================
+
+additional_tags = {
+  Project     = "Inventory-Stock-Management"
+  Team        = "DevOps"
+  CostCenter  = "Engineering"
+  Terraform   = "true"
+}

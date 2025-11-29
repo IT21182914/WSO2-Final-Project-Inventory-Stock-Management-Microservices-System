@@ -1,0 +1,15 @@
+variable "environment" {}
+variable "vpc_id" {}
+variable "public_subnet_ids" {}
+variable "private_subnet_ids" {}
+variable "master_security_group_id" {}
+variable "worker_security_group_id" {}
+variable "lb_security_group_id" {}
+variable "master_count" {}
+variable "master_instance_type" {}
+variable "worker_count" {}
+variable "worker_instance_type" {}
+variable "root_volume_size" {}
+variable "data_volume_size" {}
+variable "ssh_key_name" {}
+variable "cluster_name" {}

@@ -1,0 +1,110 @@
+# ============================================================================
+# ANSIBLE PLAYBOOK - Install Kubeadm Kubernetes Cluster
+# ============================================================================
+# This playbook installs standard Kubernetes using kubeadm
+# ============================================================================
+
+---
+- name: Prepare All Nodes
+  hosts: k8s_cluster
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Install kubeadm, kubelet, kubectl
+      shell: |
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/{{ k8s_version }}/deb/Release.key | \
+          gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        
+        echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] \
+          https://pkgs.k8s.io/core:/stable:/{{ k8s_version }}/deb/ /" | \
+          tee /etc/apt/sources.list.d/kubernetes.list
+        
+        apt-get update
+        apt-get install -y kubelet kubeadm kubectl
+        apt-mark hold kubelet kubeadm kubectl
+        
+        systemctl enable kubelet
+        systemctl start kubelet
+
+- name: Initialize Master Node
+  hosts: master[0]
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Initialize Kubernetes cluster
+      shell: |
+        kubeadm init \
+          --control-plane-endpoint="{{ lb_endpoint }}:6443" \
+          --upload-certs \
+          --pod-network-cidr={{ pod_network_cidr }} \
+          --service-cidr={{ service_cidr }}
+      register: kubeadm_init
+      
+    - name: Create .kube directory
+      file:
+        path: /root/.kube
+        state: directory
+        mode: '0755'
+        
+    - name: Copy kubeconfig
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: yes
+        mode: '0600'
+        
+    - name: Install Calico network plugin
+      shell: |
+        kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+      
+    - name: Get join command
+      shell: kubeadm token create --print-join-command
+      register: join_command
+      
+    - name: Save join command
+      local_action:
+        module: copy
+        content: "{{ join_command.stdout }}"
+        dest: "/tmp/k8s-join-command"
+        
+    - name: Get kubeconfig
+      fetch:
+        src: /etc/kubernetes/admin.conf
+        dest: "{{ playbook_dir }}/../terraform/kubeconfig"
+        flat: yes
+
+- name: Join Worker Nodes
+  hosts: worker
+  become: yes
+  gather_facts: no
+  
+  tasks:
+    - name: Read join command
+      set_fact:
+        join_cmd: "{{ lookup('file', '/tmp/k8s-join-command') }}"
+        
+    - name: Join cluster
+      shell: "{{ join_cmd }}"
+
+- name: Verify Cluster
+  hosts: master[0]
+  become: yes
+  gather_facts: no
+  
+  tasks:
+    - name: Wait for nodes to be ready
+      shell: kubectl get nodes --no-headers | grep -c Ready
+      register: ready_nodes
+      until: ready_nodes.stdout | int == groups['k8s_cluster'] | length
+      retries: 30
+      delay: 10
+      
+    - name: Display cluster info
+      shell: kubectl get nodes -o wide
+      register: cluster_nodes
+      
+    - name: Show cluster status
+      debug:
+        msg: "{{ cluster_nodes.stdout_lines }}"

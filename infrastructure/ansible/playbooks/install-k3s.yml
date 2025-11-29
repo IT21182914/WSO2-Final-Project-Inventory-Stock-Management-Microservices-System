@@ -1,0 +1,94 @@
+# ============================================================================
+# ANSIBLE PLAYBOOK - Install K3s Kubernetes Cluster
+# ============================================================================
+# This playbook installs k3s on master and worker nodes
+# ============================================================================
+
+---
+- name: Install K3s on Master Nodes
+  hosts: master
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Install k3s on first master
+      shell: |
+        curl -sfL https://get.k3s.io | sh -s - server \
+          --cluster-init \
+          --tls-san={{ lb_endpoint }} \
+          --node-name={{ inventory_hostname }} \
+          --write-kubeconfig-mode=644
+      when: inventory_hostname == groups['master'][0]
+      
+    - name: Wait for k3s to be ready
+      wait_for:
+        port: 6443
+        delay: 10
+        timeout: 300
+      when: inventory_hostname == groups['master'][0]
+      
+    - name: Get node token
+      slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: node_token
+      when: inventory_hostname == groups['master'][0]
+      
+    - name: Save token to localhost
+      local_action:
+        module: copy
+        content: "{{ node_token.content | b64decode }}"
+        dest: "/tmp/k3s-token"
+      when: inventory_hostname == groups['master'][0]
+      
+    - name: Get kubeconfig
+      fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: "{{ playbook_dir }}/../terraform/kubeconfig"
+        flat: yes
+      when: inventory_hostname == groups['master'][0]
+      
+    - name: Replace localhost with load balancer in kubeconfig
+      local_action:
+        module: replace
+        path: "{{ playbook_dir }}/../terraform/kubeconfig"
+        regexp: '127.0.0.1'
+        replace: '{{ lb_endpoint }}'
+      when: inventory_hostname == groups['master'][0]
+
+- name: Install K3s on Worker Nodes
+  hosts: worker
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Read node token from localhost
+      set_fact:
+        k3s_token: "{{ lookup('file', '/tmp/k3s-token') }}"
+      
+    - name: Install k3s agent on workers
+      shell: |
+        curl -sfL https://get.k3s.io | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443 \
+          K3S_TOKEN={{ k3s_token }} \
+          sh -s - agent \
+          --node-name={{ inventory_hostname }}
+
+- name: Verify Cluster
+  hosts: master[0]
+  become: yes
+  gather_facts: no
+  
+  tasks:
+    - name: Wait for all nodes to be ready
+      shell: kubectl get nodes --no-headers | wc -l
+      register: node_count
+      until: node_count.stdout | int == groups['k8s_cluster'] | length
+      retries: 30
+      delay: 10
+      
+    - name: Display cluster info
+      shell: kubectl get nodes -o wide
+      register: cluster_nodes
+      
+    - name: Show cluster status
+      debug:
+        msg: "{{ cluster_nodes.stdout_lines }}"

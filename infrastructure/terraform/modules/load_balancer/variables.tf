@@ -1,0 +1,9 @@
+variable "environment" {}
+variable "vpc_id" {}
+variable "subnet_ids" {}
+variable "security_group_id" {}
+variable "master_instance_ids" {}
+variable "worker_instance_ids" {}
+variable "cluster_name" {}
+variable "health_check_path" {}
+variable "health_check_port" {}

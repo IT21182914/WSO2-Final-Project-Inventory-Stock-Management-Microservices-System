@@ -1,0 +1,121 @@
+# ============================================================================
+# ANSIBLE PLAYBOOK - Install RKE2 Kubernetes Cluster
+# ============================================================================
+# This playbook installs RKE2 (Rancher's secure Kubernetes distribution)
+# ============================================================================
+
+---
+- name: Install RKE2 on Master Nodes
+  hosts: master[0]
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Create RKE2 config directory
+      file:
+        path: /etc/rancher/rke2
+        state: directory
+        mode: '0755'
+        
+    - name: Create RKE2 config file
+      copy:
+        dest: /etc/rancher/rke2/config.yaml
+        content: |
+          tls-san:
+            - {{ lb_endpoint }}
+          write-kubeconfig-mode: "0644"
+          cluster-cidr: {{ pod_network_cidr }}
+          service-cidr: {{ service_cidr }}
+        mode: '0644'
+        
+    - name: Install RKE2 server
+      shell: |
+        curl -sfL https://get.rke2.io | sh -
+        systemctl enable rke2-server.service
+        systemctl start rke2-server.service
+      
+    - name: Wait for RKE2 to be ready
+      wait_for:
+        path: /var/lib/rancher/rke2/server/node-token
+        timeout: 300
+        
+    - name: Get node token
+      slurp:
+        src: /var/lib/rancher/rke2/server/node-token
+      register: node_token
+      
+    - name: Save token to localhost
+      local_action:
+        module: copy
+        content: "{{ node_token.content | b64decode }}"
+        dest: "/tmp/rke2-token"
+        
+    - name: Set up kubectl
+      shell: |
+        ln -s /var/lib/rancher/rke2/bin/kubectl /usr/local/bin/kubectl || true
+        mkdir -p /root/.kube
+        cp /etc/rancher/rke2/rke2.yaml /root/.kube/config
+        
+    - name: Get kubeconfig
+      fetch:
+        src: /etc/rancher/rke2/rke2.yaml
+        dest: "{{ playbook_dir }}/../terraform/kubeconfig"
+        flat: yes
+        
+    - name: Replace localhost with load balancer in kubeconfig
+      local_action:
+        module: replace
+        path: "{{ playbook_dir }}/../terraform/kubeconfig"
+        regexp: '127.0.0.1'
+        replace: '{{ lb_endpoint }}'
+
+- name: Install RKE2 on Worker Nodes
+  hosts: worker
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Read node token
+      set_fact:
+        rke2_token: "{{ lookup('file', '/tmp/rke2-token') }}"
+        
+    - name: Create RKE2 config directory
+      file:
+        path: /etc/rancher/rke2
+        state: directory
+        mode: '0755'
+        
+    - name: Create RKE2 config file
+      copy:
+        dest: /etc/rancher/rke2/config.yaml
+        content: |
+          server: https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:9345
+          token: {{ rke2_token }}
+        mode: '0644'
+        
+    - name: Install RKE2 agent
+      shell: |
+        curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE="agent" sh -
+        systemctl enable rke2-agent.service
+        systemctl start rke2-agent.service
+
+- name: Verify Cluster
+  hosts: master[0]
+  become: yes
+  gather_facts: no
+  
+  tasks:
+    - name: Wait for all nodes to be ready
+      shell: kubectl get nodes --no-headers | wc -l
+      register: node_count
+      until: node_count.stdout | int == groups['k8s_cluster'] | length
+      retries: 30
+      delay: 10
+      
+    - name: Display cluster info
+      shell: kubectl get nodes -o wide
+      register: cluster_nodes
+      
+    - name: Show cluster status
+      debug:
+        msg: "{{ cluster_nodes.stdout_lines }}"
