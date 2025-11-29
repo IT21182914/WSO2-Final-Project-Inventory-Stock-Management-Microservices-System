@@ -219,7 +219,7 @@ jobs:
       - name: Start services with Docker Compose
         working-directory: backend
         run: |
-          docker-compose up -d
+          docker compose up -d
           sleep 30
       
       - name: Wait for services to be healthy
@@ -235,7 +235,7 @@ jobs:
       - name: Collect service logs
         if: always()
         working-directory: backend
-        run: docker-compose logs > integration-logs.txt
+        run: docker compose logs > integration-logs.txt
       
       - name: Upload logs
         if: always()
@@ -248,7 +248,7 @@ jobs:
       - name: Cleanup
         if: always()
         working-directory: backend
-        run: docker-compose down -v
+        run: docker compose down -v
 
   build-status:
     name: Build Status Summary

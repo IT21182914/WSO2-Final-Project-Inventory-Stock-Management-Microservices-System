@@ -308,7 +308,7 @@ jobs:
       - name: Start services with docker-compose
         working-directory: backend
         run: |
-          docker-compose up -d
+          docker compose up -d
           sleep 45
       
       - name: Check service health
@@ -323,7 +323,7 @@ jobs:
               echo "✅ $service is running"
             else
               echo "❌ $service is not running"
-              docker-compose logs "$service"
+              docker compose logs "$service"
             fi
           done
       
@@ -344,5 +344,5 @@ jobs:
         if: always()
         working-directory: backend
         run: |
-          docker-compose logs
-          docker-compose down -v
+          docker compose logs
+          docker compose down -v
