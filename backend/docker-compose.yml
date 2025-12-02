@@ -1,4 +1,5 @@
-version: '3.8'
+# Docker Compose configuration for Inventory Management System
+# Note: 'version' field is obsolete in Docker Compose v2, removed for compatibility
 
 services:
   # PostgreSQL Database

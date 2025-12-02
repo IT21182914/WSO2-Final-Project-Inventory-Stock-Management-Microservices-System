@@ -31,8 +31,6 @@ const releaseStockSchema = Joi.object({
 });
 
 const updateInventorySchema = Joi.object({
-  quantity: Joi.number().integer().min(0).optional(),
-  reserved_quantity: Joi.number().integer().min(0).optional(),
   warehouse_location: Joi.string().max(100).optional(),
   reorder_level: Joi.number().integer().min(0).optional(),
   max_stock_level: Joi.number().integer().min(0).optional(),

@@ -151,8 +151,6 @@ class Inventory {
     let paramCount = 1;
 
     const allowedFields = [
-      "quantity",
-      "reserved_quantity",
       "warehouse_location",
       "reorder_level",
       "max_stock_level",

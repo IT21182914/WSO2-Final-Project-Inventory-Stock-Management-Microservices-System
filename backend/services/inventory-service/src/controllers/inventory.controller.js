@@ -300,39 +300,6 @@ class InventoryController {
     }
   }
 
-  async updateInventoryById(req, res) {
-    try {
-      const { id } = req.params;
-      const updateData = req.body;
-
-      // First get the inventory to find product_id
-      const inventory = await Inventory.findById(id);
-      if (!inventory) {
-        return res.status(404).json({
-          success: false,
-          message: "Inventory not found",
-        });
-      }
-
-      const updatedInventory = await Inventory.update(inventory.product_id, updateData);
-
-      logger.info(`Inventory updated for ID ${id}`);
-
-      res.json({
-        success: true,
-        message: "Inventory updated successfully",
-        data: updatedInventory,
-      });
-    } catch (error) {
-      logger.error("Update inventory by ID error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Error updating inventory",
-        error: error.message,
-      });
-    }
-  }
-
   async deleteInventory(req, res) {
     try {
       const { productId } = req.params;

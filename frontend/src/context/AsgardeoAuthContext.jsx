@@ -18,8 +18,6 @@ export const AsgardeoAuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  console.log("🔧 AsgardeoAuthProvider initialized");
-
   // Asgardeo hooks
   const {
     state,
@@ -31,13 +29,6 @@ export const AsgardeoAuthProvider = ({ children }) => {
     getDecodedIDToken,
     on,
   } = useAuthContext();
-
-  console.log("🔍 Asgardeo Auth State:", {
-    isAuthenticated: state?.isAuthenticated,
-    isLoading: state?.isLoading,
-    username: state?.username,
-    displayName: state?.displayName
-  });
 
   // Helper function to get actual JWT access token from sessionStorage
   const getRealAccessToken = async () => {
@@ -112,14 +103,12 @@ export const AsgardeoAuthProvider = ({ children }) => {
           // Store token in API service
           if (accessToken) {
             localStorage.setItem("asgardeo_token", accessToken);
-            localStorage.setItem("token", accessToken); // Also store as 'token' for services
             console.log("💾 Token stored in localStorage");
           }
         } else {
           console.log("❌ User is not authenticated");
           setUser(null);
           localStorage.removeItem("asgardeo_token");
-          localStorage.removeItem("token"); // Also remove 'token'
         }
       } catch (error) {
         console.error("❌ Error initializing auth:", error);
@@ -181,15 +170,9 @@ export const AsgardeoAuthProvider = ({ children }) => {
   const login = async () => {
     try {
       console.log("🔐 Attempting Asgardeo login...");
-      console.log("  Current window.location:", window.location.href);
-      console.log("  Current origin:", window.location.origin);
       console.log("  Auth state:", state);
-      console.log("  Calling signIn()...");
-      
-      const result = await signIn();
-      
+      await signIn();
       console.log("✅ SignIn triggered successfully");
-      console.log("  SignIn result:", result);
       // The actual login redirect will be handled by Asgardeo
       // User will be set in the useEffect when they return
     } catch (error) {
@@ -197,7 +180,6 @@ export const AsgardeoAuthProvider = ({ children }) => {
       console.error("  Error name:", error.name);
       console.error("  Error message:", error.message);
       console.error("  Error stack:", error.stack);
-      console.error("  Full error object:", JSON.stringify(error, null, 2));
       toast.error(`Login failed: ${error.message || "Please try again"}`);
       throw error;
     }

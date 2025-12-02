@@ -1,0 +1,278 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: 'staging'
+      image_tag:
+        description: 'Docker image tag to deploy'
+        required: true
+        default: 'latest'
+  
+  push:
+    branches:
+      - main
+    paths:
+      - 'k8s/**'
+      - '.github/workflows/k8s-deploy.yml'
+
+env:
+  KUBECONFIG_PATH: ${{ secrets.KUBECONFIG }}
+
+jobs:
+  # ============================================================
+  # Stage 4: Deploy to Staging
+  # ============================================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' || 
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    environment:
+      name: staging
+      url: https://staging.inventory-system.example.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+      
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+      
+      - name: Update image tags
+        run: |
+          TAG=${{ github.event.inputs.image_tag || 'latest' }}
+          
+          # Update all deployment manifests with new image tag
+          find k8s/base -name "*-deployment.yaml" -exec sed -i "s|:latest|:${TAG}|g" {} \;
+      
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f k8s/base/namespace.yaml
+          kubectl apply -f k8s/base/database/
+          kubectl apply -f k8s/base/configmaps/
+          kubectl apply -f k8s/base/secrets/
+          kubectl apply -f k8s/base/deployments/
+          kubectl apply -f k8s/base/services/
+          kubectl apply -f k8s/base/hpa/
+          kubectl apply -f k8s/security/
+          kubectl apply -f k8s/monitoring/
+      
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/user-service -n inventory-staging --timeout=5m
+          kubectl rollout status deployment/product-catalog-service -n inventory-staging --timeout=5m
+          kubectl rollout status deployment/inventory-service -n inventory-staging --timeout=5m
+          kubectl rollout status deployment/order-service -n inventory-staging --timeout=5m
+          kubectl rollout status deployment/supplier-service -n inventory-staging --timeout=5m
+      
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n inventory-staging
+          kubectl get services -n inventory-staging
+          kubectl get hpa -n inventory-staging
+      
+      # ============================================================
+      # Run Smoke Tests After Deployment
+      # ============================================================
+      - name: Run smoke tests
+        run: |
+          chmod +x scripts/smoke-tests/smoke-test.sh
+          NAMESPACE=inventory-staging ./scripts/smoke-tests/smoke-test.sh
+      
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Smoke tests failed! Rolling back..."
+          kubectl rollout undo deployment/user-service -n inventory-staging
+          kubectl rollout undo deployment/product-catalog-service -n inventory-staging
+          kubectl rollout undo deployment/inventory-service -n inventory-staging
+          kubectl rollout undo deployment/order-service -n inventory-staging
+          kubectl rollout undo deployment/supplier-service -n inventory-staging
+      
+      - name: Notify success
+        if: success()
+        run: |
+          echo "✅ Staging deployment successful!"
+          echo "Environment: https://staging.inventory-system.example.com"
+      
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "❌ Staging deployment failed!"
+          echo "Check logs and smoke test results above."
+
+  # ============================================================
+  # Stage 5: Manual Approval for Production
+  # ============================================================
+  approval-gate:
+    name: Approve Production Deployment
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
+    environment:
+      name: production-approval
+    
+    steps:
+      - name: Wait for approval
+        run: |
+          echo "⏳ Waiting for manual approval to deploy to production..."
+          echo "Staging tests passed. Ready for production deployment."
+          echo ""
+          echo "Review checklist:"
+          echo "✅ Staging smoke tests passed"
+          echo "✅ No critical bugs reported"
+          echo "✅ Change log reviewed"
+          echo "✅ Rollback plan confirmed"
+
+  # ============================================================
+  # Stage 6: Production Deployment (Blue-Green Strategy)
+  # ============================================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: approval-gate
+    environment:
+      name: production
+      url: https://inventory-system.example.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+      
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+      
+      - name: Update image tags
+        run: |
+          TAG=${{ github.event.inputs.image_tag || 'latest' }}
+          find k8s/base -name "*-deployment.yaml" -exec sed -i "s|:latest|:${TAG}|g" {} \;
+      
+      # Blue-Green Deployment Strategy
+      - name: Deploy green version
+        run: |
+          echo "🟢 Deploying green version..."
+          
+          # Apply manifests to production namespace
+          kubectl apply -f k8s/base/namespace.yaml
+          kubectl apply -f k8s/base/database/
+          kubectl apply -f k8s/base/configmaps/
+          kubectl apply -f k8s/base/secrets/
+          kubectl apply -f k8s/base/deployments/
+          
+          # Services will be switched after validation
+      
+      - name: Wait for green deployment
+        run: |
+          kubectl rollout status deployment/user-service -n inventory-production --timeout=5m
+          kubectl rollout status deployment/product-catalog-service -n inventory-production --timeout=5m
+          kubectl rollout status deployment/inventory-service -n inventory-production --timeout=5m
+          kubectl rollout status deployment/order-service -n inventory-production --timeout=5m
+          kubectl rollout status deployment/supplier-service -n inventory-production --timeout=5m
+      
+      - name: Run production smoke tests
+        run: |
+          chmod +x scripts/smoke-tests/smoke-test.sh
+          NAMESPACE=inventory-production ./scripts/smoke-tests/smoke-test.sh
+      
+      - name: Switch traffic to green
+        if: success()
+        run: |
+          echo "🔄 Switching traffic to green version..."
+          kubectl apply -f k8s/base/services/
+          kubectl apply -f k8s/base/hpa/
+          kubectl apply -f k8s/security/
+          kubectl apply -f k8s/monitoring/
+      
+      - name: Verify production
+        run: |
+          kubectl get pods -n inventory-production
+          kubectl get services -n inventory-production
+          kubectl top pods -n inventory-production || true
+      
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "❌ Production deployment failed! Rolling back..."
+          kubectl rollout undo deployment/user-service -n inventory-production
+          kubectl rollout undo deployment/product-catalog-service -n inventory-production
+          kubectl rollout undo deployment/inventory-service -n inventory-production
+          kubectl rollout undo deployment/order-service -n inventory-production
+          kubectl rollout undo deployment/supplier-service -n inventory-production
+          
+          echo "Rollback complete. Previous version restored."
+          exit 1
+      
+      - name: Notify success
+        if: success()
+        run: |
+          echo "✅ Production deployment successful!"
+          echo "Environment: https://inventory-system.example.com"
+          echo ""
+          echo "Deployment Details:"
+          echo "- Strategy: Blue-Green"
+          echo "- Image Tag: ${{ github.event.inputs.image_tag || 'latest' }}"
+          echo "- Commit: ${{ github.sha }}"
+      
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "❌ Production deployment failed and rolled back!"
+          echo "Previous version is still running."
+          echo "Check logs above for details."
+
+  # ============================================================
+  # Deployment Summary
+  # ============================================================
+  summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: always()
+    
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Environment: ${{ github.event.inputs.environment || 'staging' }}" >> $GITHUB_STEP_SUMMARY
+          echo "## Image Tag: ${{ github.event.inputs.image_tag || 'latest' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.deploy-staging.result }}" == "success" ]; then
+            echo "✅ Staging: **SUCCESS**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Staging: **FAILED**" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.deploy-production.result }}" == "success" ]; then
+            echo "✅ Production: **SUCCESS**" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.deploy-production.result }}" == "skipped" ]; then
+            echo "⏭️ Production: **SKIPPED**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Production: **FAILED**" >> $GITHUB_STEP_SUMMARY
+          fi

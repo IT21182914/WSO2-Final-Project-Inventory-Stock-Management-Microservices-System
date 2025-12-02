@@ -5,14 +5,17 @@ class Category {
   static async create(data) {
     const { name, description } = data;
 
+    // Auto-generate code from category name (first 3 letters, uppercase)
+    const code = name.substring(0, 3).toUpperCase();
+
     const query = `
-      INSERT INTO categories (name, description)
-      VALUES ($1, $2)
+      INSERT INTO categories (name, description, code)
+      VALUES ($1, $2, $3)
       RETURNING *
     `;
 
     try {
-      const result = await db.query(query, [name, description]);
+      const result = await db.query(query, [name, description, code]);
       return result.rows[0];
     } catch (error) {
       logger.error("Error creating category:", error);
@@ -47,17 +50,21 @@ class Category {
   static async update(id, data) {
     const { name, description } = data;
 
+    // Auto-generate code from category name if name is being updated
+    const code = name ? name.substring(0, 3).toUpperCase() : null;
+
     const query = `
       UPDATE categories 
       SET name = COALESCE($1, name),
           description = COALESCE($2, description),
+          code = COALESCE($3, code),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $3
+      WHERE id = $4
       RETURNING *
     `;
 
     try {
-      const result = await db.query(query, [name, description, id]);
+      const result = await db.query(query, [name, description, code, id]);
       return result.rows[0];
     } catch (error) {
       logger.error("Error updating category:", error);

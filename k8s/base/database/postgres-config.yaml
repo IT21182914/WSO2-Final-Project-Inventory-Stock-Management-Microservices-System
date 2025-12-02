@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: inventory-system
+data:
+  POSTGRES_DB: ims_db
+  POSTGRES_USER: postgres
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: inventory-system
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: postgres
+  # In production, use: kubectl create secret generic postgres-secret --from-literal=POSTGRES_PASSWORD=<strong-password>

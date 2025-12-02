@@ -19,8 +19,8 @@ class PurchaseOrder {
       .toUpperCase()}`;
 
     const query = `
-      INSERT INTO purchase_orders (po_number, supplier_id, total_amount, order_date, expected_delivery_date, status, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO purchase_orders (po_number, supplier_id, total_amount, order_date, expected_delivery_date, status, notes, supplier_response)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
       RETURNING *
     `;
 
@@ -69,7 +69,11 @@ class PurchaseOrder {
       paramCount++;
     }
 
-    // supplier_response filter removed - column doesn't exist in schema
+    if (filters.supplier_response) {
+      query += ` AND po.supplier_response = $${paramCount}`;
+      values.push(filters.supplier_response);
+      paramCount++;
+    }
 
     query += " ORDER BY po.created_at DESC";
 
