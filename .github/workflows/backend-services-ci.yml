@@ -221,7 +221,7 @@ jobs:
       - name: Start all services
         working-directory: backend
         run: |
-          docker-compose up -d
+          docker compose up -d
           sleep 45
       
       - name: Wait for services to be ready
@@ -252,7 +252,7 @@ jobs:
       - name: Cleanup
         if: always()
         working-directory: backend
-        run: docker-compose down -v
+        run: docker compose down -v
 
   service-ci-status:
     name: Backend Services CI Status

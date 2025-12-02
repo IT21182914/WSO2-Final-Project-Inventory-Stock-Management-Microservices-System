@@ -3,6 +3,10 @@ docs/
 scripts/
 **/scripts/
 
+# Root-level documentation files (presentation materials)
+/*.md
+!README.md
+
 # Node modules
 node_modules/
 
