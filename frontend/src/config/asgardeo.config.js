@@ -8,33 +8,21 @@
  * 4. Copy Client ID to .env file
  */
 
-// Debug: Log environment variables
-console.log("🔧 Asgardeo Config Debug:");
-console.log(
-  "  VITE_ASGARDEO_BASE_URL:",
-  import.meta.env.VITE_ASGARDEO_BASE_URL
-);
-console.log(
-  "  VITE_ASGARDEO_CLIENT_ID:",
-  import.meta.env.VITE_ASGARDEO_CLIENT_ID
-);
-console.log("  VITE_APP_URL:", import.meta.env.VITE_APP_URL);
-
-const baseUrl =
-  import.meta.env.VITE_ASGARDEO_BASE_URL ||
-  "https://api.asgardeo.io/t/dilanorg";
-const clientID = import.meta.env.VITE_ASGARDEO_CLIENT_ID;
+// Get environment variables with proper fallbacks
+const baseUrl = import.meta.env.VITE_ASGARDEO_BASE_URL || "https://api.asgardeo.io/t/kubestock";
+const clientID = import.meta.env.VITE_ASGARDEO_CLIENT_ID || "";
 const redirectURL = import.meta.env.VITE_APP_URL || "http://localhost:5173";
 
-console.log("🔍 Asgardeo Config Values:");
-console.log("  baseUrl:", baseUrl);
-console.log("  clientID:", clientID);
-console.log("  redirectURL:", redirectURL);
+// Debug logging (only in development)
+if (import.meta.env.DEV) {
+  console.log("🔧 Asgardeo Config:");
+  console.log("  baseUrl:", baseUrl);
+  console.log("  clientID:", clientID ? "Set ✓" : "Missing ✗");
+  console.log("  redirectURL:", redirectURL);
+}
 
 if (!clientID) {
-  console.error(
-    "❌ VITE_ASGARDEO_CLIENT_ID is not set in environment variables!"
-  );
+  console.error("❌ VITE_ASGARDEO_CLIENT_ID is not set in environment variables!");
 }
 
 export const asgardeoConfig = {
@@ -48,9 +36,6 @@ export const asgardeoConfig = {
   signInRedirectURL: redirectURL,
   signOutRedirectURL: redirectURL,
 
-  // Debug
-  _debug: true,
-
   // OAuth scopes
   scope: ["openid", "profile", "email", "groups"],
 
@@ -61,20 +46,21 @@ export const asgardeoConfig = {
   responseMode: "query",
 
   // Storage type
-  storage: "sessionStorage", // or 'localStorage'
+  storage: "sessionStorage",
 
-  // Disable default session validation
+  // Token validation
   validateIDTokenIssuer: true,
 
   // Clock tolerance for token validation (in seconds)
   clockTolerance: 60,
 };
 
-console.log("✅ Asgardeo Config Created:");
-console.log("  Base URL:", asgardeoConfig.baseUrl);
-console.log("  Client ID:", asgardeoConfig.clientID ? "Set ✓" : "Missing ✗");
-console.log("  Sign In Redirect URL:", asgardeoConfig.signInRedirectURL);
-console.log("  Sign Out Redirect URL:", asgardeoConfig.signOutRedirectURL);
-console.log("  Full Config:", JSON.stringify(asgardeoConfig, null, 2));
+if (import.meta.env.DEV) {
+  console.log("✅ Asgardeo Config:", {
+    baseUrl: asgardeoConfig.baseUrl,
+    clientID: asgardeoConfig.clientID ? "Set ✓" : "Missing ✗",
+    signInRedirectURL: asgardeoConfig.signInRedirectURL,
+  });
+}
 
 export default asgardeoConfig;
