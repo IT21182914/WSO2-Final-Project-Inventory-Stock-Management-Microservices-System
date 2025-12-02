@@ -3,7 +3,7 @@ import { Outlet } from "react-router-dom";
 const AuthLayout = () => {
   return (
     <div className="min-h-screen bg-gradient-primary flex items-center justify-center p-4">
-      {/* Background Pattern */}
+      {/*Pattern */}
       <div className="absolute inset-0 overflow-hidden opacity-10">
         <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-white rounded-full blur-3xl"></div>
         <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-white rounded-full blur-3xl"></div>
