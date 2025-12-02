@@ -67,11 +67,12 @@ jobs:
           fi
       
       - name: Configure kubectl
-        if: secrets.KUBECONFIG_STAGING != ''
         run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
-          chmod 600 $HOME/.kube/config
+          if [ -n "${{ secrets.KUBECONFIG_STAGING }}" ]; then
+            mkdir -p $HOME/.kube
+            echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+            chmod 600 $HOME/.kube/config
+          fi
       
       - name: Update image tags
         run: |
@@ -81,52 +82,58 @@ jobs:
           find k8s/base -name "*-deployment.yaml" -exec sed -i "s|:latest|:${TAG}|g" {} \;
       
       - name: Apply Kubernetes manifests
-        if: secrets.KUBECONFIG_STAGING != ''
         run: |
-          kubectl apply -f k8s/base/namespace.yaml
-          kubectl apply -f k8s/base/database/
-          kubectl apply -f k8s/base/configmaps/
-          kubectl apply -f k8s/base/secrets/
-          kubectl apply -f k8s/base/deployments/
-          kubectl apply -f k8s/base/services/
-          kubectl apply -f k8s/base/hpa/
-          kubectl apply -f k8s/security/
-          kubectl apply -f k8s/monitoring/
+          if [ -n "${{ secrets.KUBECONFIG_STAGING }}" ]; then
+            kubectl apply -f k8s/base/namespace.yaml
+            kubectl apply -f k8s/base/database/
+            kubectl apply -f k8s/base/configmaps/
+            kubectl apply -f k8s/base/secrets/
+            kubectl apply -f k8s/base/deployments/
+            kubectl apply -f k8s/base/services/
+            kubectl apply -f k8s/base/hpa/
+            kubectl apply -f k8s/security/
+            kubectl apply -f k8s/monitoring/
+          fi
       
       - name: Wait for rollout
-        if: secrets.KUBECONFIG_STAGING != ''
         run: |
-          kubectl rollout status deployment/user-service -n inventory-staging --timeout=5m
-          kubectl rollout status deployment/product-catalog-service -n inventory-staging --timeout=5m
-          kubectl rollout status deployment/inventory-service -n inventory-staging --timeout=5m
-          kubectl rollout status deployment/order-service -n inventory-staging --timeout=5m
-          kubectl rollout status deployment/supplier-service -n inventory-staging --timeout=5m
+          if [ -n "${{ secrets.KUBECONFIG_STAGING }}" ]; then
+            kubectl rollout status deployment/user-service -n inventory-staging --timeout=5m
+            kubectl rollout status deployment/product-catalog-service -n inventory-staging --timeout=5m
+            kubectl rollout status deployment/inventory-service -n inventory-staging --timeout=5m
+            kubectl rollout status deployment/order-service -n inventory-staging --timeout=5m
+            kubectl rollout status deployment/supplier-service -n inventory-staging --timeout=5m
+          fi
       
       - name: Verify deployment
-        if: secrets.KUBECONFIG_STAGING != ''
         run: |
-          kubectl get pods -n inventory-staging
-          kubectl get services -n inventory-staging
-          kubectl get hpa -n inventory-staging
+          if [ -n "${{ secrets.KUBECONFIG_STAGING }}" ]; then
+            kubectl get pods -n inventory-staging
+            kubectl get services -n inventory-staging
+            kubectl get hpa -n inventory-staging
+          fi
       
       # ============================================================
       # Run Smoke Tests After Deployment
       # ============================================================
       - name: Run smoke tests
-        if: secrets.KUBECONFIG_STAGING != ''
         run: |
-          chmod +x scripts/smoke-tests/smoke-test.sh
-          NAMESPACE=inventory-staging ./scripts/smoke-tests/smoke-test.sh
+          if [ -n "${{ secrets.KUBECONFIG_STAGING }}" ]; then
+            chmod +x scripts/smoke-tests/smoke-test.sh
+            NAMESPACE=inventory-staging ./scripts/smoke-tests/smoke-test.sh
+          fi
       
       - name: Rollback on failure
-        if: failure() && secrets.KUBECONFIG_STAGING != ''
+        if: failure()
         run: |
-          echo "Smoke tests failed! Rolling back..."
-          kubectl rollout undo deployment/user-service -n inventory-staging
-          kubectl rollout undo deployment/product-catalog-service -n inventory-staging
-          kubectl rollout undo deployment/inventory-service -n inventory-staging
-          kubectl rollout undo deployment/order-service -n inventory-staging
-          kubectl rollout undo deployment/supplier-service -n inventory-staging
+          if [ -n "${{ secrets.KUBECONFIG_STAGING }}" ]; then
+            echo "Smoke tests failed! Rolling back..."
+            kubectl rollout undo deployment/user-service -n inventory-staging
+            kubectl rollout undo deployment/product-catalog-service -n inventory-staging
+            kubectl rollout undo deployment/inventory-service -n inventory-staging
+            kubectl rollout undo deployment/order-service -n inventory-staging
+            kubectl rollout undo deployment/supplier-service -n inventory-staging
+          fi
       
       - name: Notify success
         if: success()
