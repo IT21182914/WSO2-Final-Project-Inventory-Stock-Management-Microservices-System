@@ -77,7 +77,8 @@ jobs:
         run: |
           echo "🚀 CI/CD Pipeline triggered"
           echo "👤 Triggered by: ${{ github.actor }}"
-          echo "📝 Commit: ${{ github.event.head_commit.message || 'Pull Request' }}"
+          COMMIT_MSG=$(echo "${{ github.event.head_commit.message || 'Pull Request' }}" | head -n 1)
+          echo "📝 Commit: ${COMMIT_MSG}"
           echo "🔀 Branch: ${{ github.ref_name }}"
           echo ""
           echo "📊 Services changed:"
