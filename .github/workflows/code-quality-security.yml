@@ -124,13 +124,13 @@ jobs:
             
             if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
               echo "❌ Critical or high vulnerabilities found!" >> $GITHUB_STEP_SUMMARY
+              echo "::error::${{ matrix.component.name }} has $CRITICAL critical and $HIGH high vulnerabilities"
               npm audit
               exit 1
             else
               echo "✅ No critical or high vulnerabilities" >> $GITHUB_STEP_SUMMARY
             fi
           fi
-        continue-on-error: true
       
       - name: Upload audit report
         if: always()
@@ -227,7 +227,7 @@ jobs:
         with:
           image-ref: ${{ matrix.service }}:scan
           format: 'table'
-          exit-code: '0'
+          exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
       

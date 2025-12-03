@@ -2,11 +2,14 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Install build dependencies for native modules like bcrypt
+RUN apk add --no-cache python3 make g++
+
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies and rebuild native modules
+RUN npm install && npm rebuild bcrypt --build-from-source
 
 # Copy source code
 COPY . .
