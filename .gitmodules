@@ -1,0 +1,19 @@
+[submodule "modules/ms-product"]
+	path = modules/ms-product
+	url = https://github.com/KubeStock-DevOps-project/ms-product.git
+
+[submodule "modules/ms-inventory"]
+	path = modules/ms-inventory
+	url = https://github.com/KubeStock-DevOps-project/ms-inventory.git
+
+[submodule "modules/ms-supplier"]
+	path = modules/ms-supplier
+	url = https://github.com/KubeStock-DevOps-project/ms-supplier.git
+
+[submodule "modules/ms-order-management"]
+	path = modules/ms-order-management
+	url = https://github.com/KubeStock-DevOps-project/ms-order-management.git
+
+[submodule "modules/ms-identity"]
+	path = modules/ms-identity
+	url = https://github.com/KubeStock-DevOps-project/ms-identity.git

@@ -1,0 +1,293 @@
+# =============================================================================
+# KubeStock - Local Development Docker Compose
+# =============================================================================
+# This docker-compose uses git submodules from the modules/ directory
+# to build and run all microservices for local development/testing.
+#
+# Usage:
+#   1. Initialize submodules: git submodule update --init --recursive
+#   2. Copy .env.example to .env and configure secrets
+#   3. Start all services: docker compose up -d
+#   4. View logs: docker compose logs -f
+#   5. Stop all: docker compose down
+#   6. Clean reset: docker compose down -v
+# =============================================================================
+
+services:
+  # ─────────────────────────────────────────────────────────────────
+  # PostgreSQL Database (shared for all services)
+  # ─────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: kubestock-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - kubestock-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────────────
+  # Product Catalog Service (ms-product)
+  # ─────────────────────────────────────────────────────────────────
+  ms-product:
+    build:
+      context: ./modules/ms-product
+      dockerfile: Dockerfile
+    container_name: ms-product
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/product_catalog_db
+      # Asgardeo Configuration
+      ASGARDEO_ORG_NAME: ${ASGARDEO_ORG_NAME:-kubestock}
+      ASGARDEO_CLIENT_ID: ${ASGARDEO_CLIENT_ID}
+      ASGARDEO_JWKS_URL: ${ASGARDEO_JWKS_URL:-https://api.asgardeo.io/t/kubestock/oauth2/jwks}
+      ASGARDEO_ISSUER: ${ASGARDEO_ISSUER:-https://api.asgardeo.io/t/kubestock/oauth2/token}
+      ASGARDEO_AUDIENCE: ${ASGARDEO_AUDIENCE}
+      # Inter-service URLs
+      INVENTORY_SERVICE_URL: http://ms-inventory:3003
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - kubestock-network
+    volumes:
+      - ./modules/ms-product/src:/app/src:ro
+      - ./modules/ms-product/migrations:/app/migrations:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ─────────────────────────────────────────────────────────────────
+  # Inventory Service (ms-inventory)
+  # ─────────────────────────────────────────────────────────────────
+  ms-inventory:
+    build:
+      context: ./modules/ms-inventory
+      dockerfile: Dockerfile
+    container_name: ms-inventory
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3003
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/inventory_db
+      # Asgardeo Configuration
+      ASGARDEO_ORG_NAME: ${ASGARDEO_ORG_NAME:-kubestock}
+      ASGARDEO_CLIENT_ID: ${ASGARDEO_CLIENT_ID}
+      ASGARDEO_JWKS_URL: ${ASGARDEO_JWKS_URL:-https://api.asgardeo.io/t/kubestock/oauth2/jwks}
+      ASGARDEO_ISSUER: ${ASGARDEO_ISSUER:-https://api.asgardeo.io/t/kubestock/oauth2/token}
+      ASGARDEO_AUDIENCE: ${ASGARDEO_AUDIENCE}
+      # Inter-service URLs
+      PRODUCT_CATALOG_SERVICE_URL: http://ms-product:3002
+    ports:
+      - "3003:3003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ms-product:
+        condition: service_started
+    networks:
+      - kubestock-network
+    volumes:
+      - ./modules/ms-inventory/src:/app/src:ro
+      - ./modules/ms-inventory/migrations:/app/migrations:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ─────────────────────────────────────────────────────────────────
+  # Supplier Service (ms-supplier)
+  # ─────────────────────────────────────────────────────────────────
+  ms-supplier:
+    build:
+      context: ./modules/ms-supplier
+      dockerfile: Dockerfile
+    container_name: ms-supplier
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3004
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/supplier_db
+      # Asgardeo Configuration
+      ASGARDEO_ORG_NAME: ${ASGARDEO_ORG_NAME:-kubestock}
+      ASGARDEO_CLIENT_ID: ${ASGARDEO_CLIENT_ID}
+      ASGARDEO_JWKS_URL: ${ASGARDEO_JWKS_URL:-https://api.asgardeo.io/t/kubestock/oauth2/jwks}
+      ASGARDEO_ISSUER: ${ASGARDEO_ISSUER:-https://api.asgardeo.io/t/kubestock/oauth2/token}
+      ASGARDEO_AUDIENCE: ${ASGARDEO_AUDIENCE}
+      # Inter-service URLs
+      PRODUCT_CATALOG_SERVICE_URL: http://ms-product:3002
+      INVENTORY_SERVICE_URL: http://ms-inventory:3003
+    ports:
+      - "3004:3004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ms-product:
+        condition: service_started
+      ms-inventory:
+        condition: service_started
+    networks:
+      - kubestock-network
+    volumes:
+      - ./modules/ms-supplier/src:/app/src:ro
+      - ./modules/ms-supplier/migrations:/app/migrations:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ─────────────────────────────────────────────────────────────────
+  # Order Management Service (ms-order-management)
+  # ─────────────────────────────────────────────────────────────────
+  ms-order-management:
+    build:
+      context: ./modules/ms-order-management
+      dockerfile: Dockerfile
+    container_name: ms-order-management
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3005
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/order_db
+      # Asgardeo Configuration
+      ASGARDEO_ORG_NAME: ${ASGARDEO_ORG_NAME:-kubestock}
+      ASGARDEO_CLIENT_ID: ${ASGARDEO_CLIENT_ID}
+      ASGARDEO_JWKS_URL: ${ASGARDEO_JWKS_URL:-https://api.asgardeo.io/t/kubestock/oauth2/jwks}
+      ASGARDEO_ISSUER: ${ASGARDEO_ISSUER:-https://api.asgardeo.io/t/kubestock/oauth2/token}
+      ASGARDEO_AUDIENCE: ${ASGARDEO_AUDIENCE}
+      # Inter-service URLs
+      PRODUCT_CATALOG_SERVICE_URL: http://ms-product:3002
+      INVENTORY_SERVICE_URL: http://ms-inventory:3003
+    ports:
+      - "3005:3005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ms-product:
+        condition: service_started
+      ms-inventory:
+        condition: service_started
+    networks:
+      - kubestock-network
+    volumes:
+      - ./modules/ms-order-management/src:/app/src:ro
+      - ./modules/ms-order-management/migrations:/app/migrations:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ─────────────────────────────────────────────────────────────────
+  # Identity Service (ms-identity) - SCIM2 Proxy to Asgardeo
+  # ─────────────────────────────────────────────────────────────────
+  ms-identity:
+    build:
+      context: ./modules/ms-identity
+      dockerfile: Dockerfile
+    container_name: ms-identity
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3006
+      # Asgardeo OIDC Configuration (Machine-to-Machine)
+      ASGARDEO_ORG_NAME: ${ASGARDEO_ORG_NAME:-kubestock}
+      ASGARDEO_BASE_URL: ${ASGARDEO_BASE_URL:-https://api.asgardeo.io/t/kubestock}
+      ASGARDEO_CLIENT_ID: ${ASGARDEO_M2M_CLIENT_ID}
+      ASGARDEO_CLIENT_SECRET: ${ASGARDEO_M2M_CLIENT_SECRET}
+      ASGARDEO_TOKEN_URL: ${ASGARDEO_TOKEN_URL:-https://api.asgardeo.io/t/kubestock/oauth2/token}
+      ASGARDEO_SCIM2_URL: ${ASGARDEO_SCIM2_URL:-https://api.asgardeo.io/t/kubestock/scim2}
+      ASGARDEO_JWKS_URL: ${ASGARDEO_JWKS_URL:-https://api.asgardeo.io/t/kubestock/oauth2/jwks}
+      ASGARDEO_ISSUER: ${ASGARDEO_ISSUER:-https://api.asgardeo.io/t/kubestock/oauth2/token}
+      # Asgardeo Group IDs
+      ASGARDEO_GROUP_ID_ADMIN: ${ASGARDEO_GROUP_ID_ADMIN}
+      ASGARDEO_GROUP_ID_SUPPLIER: ${ASGARDEO_GROUP_ID_SUPPLIER}
+      ASGARDEO_GROUP_ID_WAREHOUSE_STAFF: ${ASGARDEO_GROUP_ID_WAREHOUSE_STAFF}
+    ports:
+      - "3006:3006"
+    networks:
+      - kubestock-network
+    volumes:
+      - ./modules/ms-identity/src:/app/src:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ─────────────────────────────────────────────────────────────────
+  # Frontend (React/Vite)
+  # ─────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_GATEWAY_URL: http://localhost:8080
+        VITE_ASGARDEO_CLIENT_ID: ${ASGARDEO_SPA_CLIENT_ID}
+        VITE_ASGARDEO_ORG_NAME: ${ASGARDEO_ORG_NAME:-kubestock}
+    container_name: kubestock-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    networks:
+      - kubestock-network
+    depends_on:
+      - ms-product
+      - ms-inventory
+      - ms-supplier
+      - ms-order-management
+      - ms-identity
+
+  # ─────────────────────────────────────────────────────────────────
+  # API Gateway (NGINX) - Optional for local testing
+  # ─────────────────────────────────────────────────────────────────
+  api-gateway:
+    image: nginx:alpine
+    container_name: kubestock-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - kubestock-network
+    depends_on:
+      - ms-product
+      - ms-inventory
+      - ms-supplier
+      - ms-order-management
+      - ms-identity
+
+networks:
+  kubestock-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

@@ -1,53 +1,210 @@
-# Local Development Quick Start Guide
+# KubeStock - Local Development Guide
 
-This guide explains how to run the full stack locally with PostgreSQL in Docker and services running manually.
+This guide explains how to run the entire KubeStock microservices system locally for development and testing.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           Frontend (React/Vite)                         │
+│                              localhost:5173                             │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       API Gateway (NGINX)                               │
+│                           localhost:8080                                │
+└─────────────────────────────────────────────────────────────────────────┘
+        │              │              │              │              │
+        ▼              ▼              ▼              ▼              ▼
+┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐
+│ms-product │  │ms-inventory│  │ms-supplier│  │ ms-order  │  │ms-identity│
+│   :3002   │  │   :3003   │  │   :3004   │  │   :3005   │  │   :3006   │
+└───────────┘  └───────────┘  └───────────┘  └───────────┘  └───────────┘
+        │              │              │              │
+        └──────────────┴──────────────┴──────────────┘
+                                │
+                                ▼
+                    ┌───────────────────────┐
+                    │   PostgreSQL :5432    │
+                    │  (4 databases)        │
+                    └───────────────────────┘
+```
 
 ## Prerequisites
 
-- Docker and Docker Compose
-- Node.js 18+ and npm
-- Git Bash or similar shell (for Windows)
+- **Docker** & **Docker Compose** v2.x+
+- **Git** (for submodules)
+- **Node.js** 18+ (for local development without Docker)
 
-## Architecture Overview
+## Quick Start
 
+### 1. Clone with Submodules
+
+```bash
+# Clone the repository
+git clone https://github.com/KubeStock-DevOps-project/Dilan-WSO2-Final-Project-Inventory-Stock-Management-Microservices-System.git
+cd Dilan-WSO2-Final-Project-Inventory-Stock-Management-Microservices-System
+
+# Initialize and update submodules
+git submodule update --init --recursive
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Frontend (React + Vite)                     │
-│                       http://localhost:5173                      │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     Asgardeo (Authentication)                    │
-│              https://api.asgardeo.io/t/YOUR_ORG                  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        ▼                     ▼                     ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│   Product     │   │   Inventory   │   │   Supplier    │
-│   Catalog     │   │   Service     │   │   Service     │
-│   :3002       │   │   :3003       │   │   :3004       │
-└───────────────┘   └───────────────┘   └───────────────┘
-        │                     │                     │
-        │           ┌─────────┼─────────┐           │
-        │           ▼         ▼         ▼           │
-        │     ┌───────────────────────────────┐     │
-        │     │        Order Service          │     │
-        │     │            :3005              │     │
-        │     └───────────────────────────────┘     │
-        │                     │                     │
-        └─────────────────────┼─────────────────────┘
-                              ▼
-                    ┌───────────────────┐
-                    │    PostgreSQL     │
-                    │   (Docker :5432)  │
-                    │                   │
-                    │  - product_catalog_db │
-                    │  - inventory_db   │
-                    │  - supplier_db    │
-                    │  - order_db       │
-                    └───────────────────┘
+
+### 2. Configure Environment
+
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Edit .env with your Asgardeo credentials
+# Required values:
+#   - ASGARDEO_SPA_CLIENT_ID
+#   - ASGARDEO_CLIENT_ID
+#   - ASGARDEO_M2M_CLIENT_ID
+#   - ASGARDEO_M2M_CLIENT_SECRET
+```
+
+### 3. Start All Services
+
+```bash
+# Start everything
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Check service health
+docker compose ps
+```
+
+### 4. Access the Application
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| Frontend | http://localhost:5173 | React SPA |
+| API Gateway | http://localhost:8080 | NGINX reverse proxy |
+| Product Service | http://localhost:3002 | Product catalog API |
+| Inventory Service | http://localhost:3003 | Stock management API |
+| Supplier Service | http://localhost:3004 | Supplier & PO API |
+| Order Service | http://localhost:3005 | Order management API |
+| Identity Service | http://localhost:3006 | User/Group SCIM2 API |
+| PostgreSQL | localhost:5432 | Database |
+
+## Submodules (Microservices)
+
+The microservices are managed as Git submodules in the `modules/` directory:
+
+| Module | Repository | Port |
+|--------|------------|------|
+| ms-product | [ms-product](https://github.com/KubeStock-DevOps-project/ms-product) | 3002 |
+| ms-inventory | [ms-inventory](https://github.com/KubeStock-DevOps-project/ms-inventory) | 3003 |
+| ms-supplier | [ms-supplier](https://github.com/KubeStock-DevOps-project/ms-supplier) | 3004 |
+| ms-order-management | [ms-order-management](https://github.com/KubeStock-DevOps-project/ms-order-management) | 3005 |
+| ms-identity | [ms-identity](https://github.com/KubeStock-DevOps-project/ms-identity) | 3006 |
+
+### Updating Submodules
+
+```bash
+# Update all submodules to latest
+git submodule update --remote --merge
+
+# Update a specific submodule
+cd modules/ms-product
+git pull origin main
+cd ../..
+git add modules/ms-product
+git commit -m "Update ms-product submodule"
+```
+
+## API Gateway Routes
+
+The NGINX API Gateway routes requests to the appropriate microservice:
+
+| Route | Service |
+|-------|---------|
+| `/api/products`, `/api/categories`, `/api/pricing` | ms-product |
+| `/api/inventory`, `/api/stock`, `/api/alerts` | ms-inventory |
+| `/api/suppliers`, `/api/purchase-orders`, `/api/purchase-requests` | ms-supplier |
+| `/api/orders` | ms-order-management |
+| `/api/users`, `/api/groups`, `/api/identity` | ms-identity |
+
+## Common Commands
+
+```bash
+# Start all services
+docker compose up -d
+
+# Stop all services
+docker compose down
+
+# Rebuild a specific service
+docker compose build ms-product
+docker compose up -d ms-product
+
+# View logs for a specific service
+docker compose logs -f ms-product
+
+# Reset everything (including database)
+docker compose down -v
+docker compose up -d
+
+# Shell into a service container
+docker compose exec ms-product sh
+
+# Run database migrations manually
+docker compose exec ms-product npm run migrate:up
+```
+
+## Asgardeo Configuration
+
+You need three Asgardeo applications:
+
+1. **SPA Application** (for Frontend)
+   - Type: Single Page Application
+   - Allowed Origins: `http://localhost:5173`
+   - Callback URLs: `http://localhost:5173`
+
+2. **Standard Application** (for Backend JWT validation)
+   - Type: Standard-Based Application
+   - Used by microservices to validate JWTs
+
+3. **M2M Application** (for Identity Service)
+   - Type: Machine-to-Machine
+   - Scopes: `internal_user_mgt_view`, `internal_user_mgt_create`, `internal_user_mgt_update`, `internal_user_mgt_delete`, `internal_group_mgt_view`
+
+## Troubleshooting
+
+### Submodules Empty
+```bash
+git submodule update --init --recursive
+```
+
+### Database Connection Issues
+```bash
+# Wait for PostgreSQL to be healthy
+docker compose logs postgres
+
+# Reset database
+docker compose down -v
+docker compose up -d postgres
+docker compose up -d
+```
+
+### Service Won't Start
+```bash
+# Check logs
+docker compose logs ms-product
+
+# Rebuild image
+docker compose build --no-cache ms-product
+docker compose up -d ms-product
+```
+
+### Port Conflicts
+If ports are already in use, modify `docker-compose.yml`:
+```yaml
+ports:
+  - "3102:3002"  # Use different host port
 ```
 
 ## Step 1: Start PostgreSQL
