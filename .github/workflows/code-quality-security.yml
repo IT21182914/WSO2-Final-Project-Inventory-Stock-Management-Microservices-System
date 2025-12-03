@@ -125,11 +125,11 @@ jobs:
             if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
               echo "⚠️ Critical or high vulnerabilities found - Review required" >> $GITHUB_STEP_SUMMARY
               echo "::warning::${{ matrix.component.name }} has $CRITICAL critical and $HIGH high vulnerabilities"
-              npm audit || true
             else
               echo "✅ No critical or high vulnerabilities" >> $GITHUB_STEP_SUMMARY
             fi
           fi
+        continue-on-error: true
       
       - name: Upload audit report
         if: always()

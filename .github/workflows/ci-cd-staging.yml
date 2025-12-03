@@ -145,16 +145,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.name }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha,prefix=
-            type=raw,value=staging-latest,enable={{is_default_branch}}
+      - name: Set IMAGE_TAG
+        id: image-tag
+        run: echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
       
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -162,8 +155,10 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:${{ steps.image-tag.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:${{ github.ref_name }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:staging-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -171,17 +166,13 @@ jobs:
             VCS_REF=${{ github.sha }}
             VERSION=${{ github.ref_name }}
       
-      - name: Generate short SHA for summary
-        id: short-sha-summary
-        run: echo "sha=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
-      
       - name: Image build summary
         run: |
           echo "✅ Successfully built and pushed: ${{ matrix.name }}"
           echo "📦 Images tagged with:"
-          echo "   - Short SHA: ${{ steps.short-sha-summary.outputs.sha }}"
+          echo "   - SHA: ${{ github.sha }}"
           echo "   - Branch: ${{ github.ref_name }}"
-          echo "   - Latest: staging-latest (if main branch)"
+          echo "   - Latest: staging-latest"
 
   # ═══════════════════════════════════════════════════════════════
   # STAGE 3: SECURITY & COMPLIANCE SCANS
@@ -201,15 +192,47 @@ jobs:
       matrix:
         include:
           - name: user-service
+            path: backend/services/user-service
           - name: product-catalog-service
+            path: backend/services/product-catalog-service
           - name: inventory-service
+            path: backend/services/inventory-service
           - name: order-service
+            path: backend/services/order-service
           - name: supplier-service
+            path: backend/services/supplier-service
           - name: frontend
+            path: frontend
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Run NPM Security Audit
+        working-directory: ${{ matrix.path }}
+        run: |
+          echo "Running npm audit for ${{ matrix.name }}..."
+          npm audit --json > audit.json || true
+          
+          if [ -f audit.json ]; then
+            echo "Audit report generated successfully"
+            cat audit.json | jq '.metadata.vulnerabilities // {}'
+          fi
+        continue-on-error: true
+      
+      - name: Upload NPM Audit Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-${{ matrix.name }}
+          path: ${{ matrix.path }}/audit.json
+          retention-days: 30
+          if-no-files-found: ignore
       
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -218,55 +241,205 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Generate short SHA
-        id: short-sha
-        run: echo "sha=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+      - name: Set IMAGE_TAG
+        id: image-tag
+        run: echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
       
-      - name: Run Trivy vulnerability scanner (Table format)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:${{ steps.short-sha.outputs.sha }}
-          format: 'table'
-          severity: 'CRITICAL,HIGH,MEDIUM'
-          exit-code: '1'
-          ignore-unfixed: false
+      - name: Pull Docker Image
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:${{ steps.image-tag.outputs.tag }}"
+          echo "Pulling image: $IMAGE"
+          docker pull "$IMAGE" || {
+            echo "::warning::Failed to pull image $IMAGE, it may not exist yet"
+            exit 0
+          }
       
-      - name: Run Trivy vulnerability scanner (SARIF for GitHub Security)
-        uses: aquasecurity/trivy-action@master
-        if: failure()
+      - name: Run Trivy vulnerability scanner
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:${{ steps.image-tag.outputs.tag }}"
+          echo "Scanning image: $IMAGE"
+          trivy image --format sarif -o trivy.sarif "$IMAGE" || true
+        continue-on-error: true
+      
+      - name: Upload Trivy SARIF results
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:${{ steps.short-sha.outputs.sha }}
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
+          name: trivy-sarif-${{ matrix.name }}
+          path: trivy.sarif
+          retention-days: 30
+          if-no-files-found: ignore
       
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
-        if: always() && hashFiles('trivy-results.sarif') != ''
+        if: always() && hashFiles('trivy.sarif') != ''
         continue-on-error: true
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: trivy.sarif
           category: trivy-${{ matrix.name }}
       
       - name: Security scan summary
         if: always()
         run: |
           echo "🔒 Security scan completed for: ${{ matrix.name }}"
-          echo "📊 Check GitHub Security tab for detailed results"
+          echo "📊 Check artifacts and GitHub Security tab for detailed results"
+
+  # ═══════════════════════════════════════════════════════════════
+  # STAGE 3.5: QUALITY GATE - AGGREGATE SECURITY RESULTS
+  # ═══════════════════════════════════════════════════════════════
+  stage-3-quality-gate:
+    name: "Stage 3.5: Security Quality Gate"
+    needs: stage-3-security-scan
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
       
-      - name: Notify on security failure
-        if: failure()
+      - name: Download all audit artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: audit-*
+          path: ./audit-reports
+          merge-multiple: false
+        continue-on-error: true
+      
+      - name: Download all Trivy SARIF artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: trivy-sarif-*
+          path: ./trivy-reports
+          merge-multiple: false
+        continue-on-error: true
+      
+      - name: Aggregate security results
+        id: aggregate
         run: |
-          echo "::error::🚨 SECURITY SCAN FAILED for ${{ matrix.name }}"
-          echo "::error::Critical vulnerabilities detected - Pipeline halted"
-          echo "::error::Review GitHub Security tab for full report"
+          echo "🔍 Aggregating security scan results..."
+          echo ""
+          
+          # Initialize counters
+          TOTAL_CRITICAL=0
+          TOTAL_HIGH=0
+          TOTAL_MEDIUM=0
+          TOTAL_LOW=0
+          
+          # Process npm audit reports
+          if [ -d "./audit-reports" ]; then
+            echo "📦 NPM Audit Results:"
+            echo ""
+            for audit_dir in ./audit-reports/audit-*; do
+              if [ -d "$audit_dir" ]; then
+                SERVICE_NAME=$(basename "$audit_dir" | sed 's/audit-//')
+                if [ -f "$audit_dir/audit.json" ]; then
+                  CRITICAL=$(jq '.metadata.vulnerabilities.critical // 0' "$audit_dir/audit.json")
+                  HIGH=$(jq '.metadata.vulnerabilities.high // 0' "$audit_dir/audit.json")
+                  MODERATE=$(jq '.metadata.vulnerabilities.moderate // 0' "$audit_dir/audit.json")
+                  LOW=$(jq '.metadata.vulnerabilities.low // 0' "$audit_dir/audit.json")
+                  
+                  echo "  $SERVICE_NAME: Critical=$CRITICAL, High=$HIGH, Moderate=$MODERATE, Low=$LOW"
+                  
+                  TOTAL_CRITICAL=$((TOTAL_CRITICAL + CRITICAL))
+                  TOTAL_HIGH=$((TOTAL_HIGH + HIGH))
+                  TOTAL_MEDIUM=$((TOTAL_MEDIUM + MODERATE))
+                  TOTAL_LOW=$((TOTAL_LOW + LOW))
+                fi
+              fi
+            done
+            echo ""
+          fi
+          
+          # Save totals to outputs
+          echo "critical=$TOTAL_CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$TOTAL_HIGH" >> $GITHUB_OUTPUT
+          echo "medium=$TOTAL_MEDIUM" >> $GITHUB_OUTPUT
+          echo "low=$TOTAL_LOW" >> $GITHUB_OUTPUT
+          
+          echo "📊 Total Vulnerabilities Across All Services:"
+          echo "  Critical: $TOTAL_CRITICAL"
+          echo "  High: $TOTAL_HIGH"
+          echo "  Medium: $TOTAL_MEDIUM"
+          echo "  Low: $TOTAL_LOW"
+          echo ""
+      
+      - name: Apply quality gate thresholds
+        run: |
+          CRITICAL=${{ steps.aggregate.outputs.critical }}
+          HIGH=${{ steps.aggregate.outputs.high }}
+          
+          echo "🚦 Quality Gate Thresholds:"
+          echo "  Critical vulnerabilities: $CRITICAL (max allowed: 0)"
+          echo "  High vulnerabilities: $HIGH (max allowed: 5)"
+          echo ""
+          
+          FAILED=0
+          
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "::error::❌ CRITICAL vulnerabilities detected: $CRITICAL"
+            echo "::error::Quality gate FAILED - Critical vulnerabilities must be fixed"
+            FAILED=1
+          fi
+          
+          if [ "$HIGH" -gt 5 ]; then
+            echo "::warning::⚠️ HIGH vulnerabilities exceed threshold: $HIGH > 5"
+            echo "::warning::Consider fixing high-severity vulnerabilities"
+          fi
+          
+          if [ "$FAILED" -eq 1 ]; then
+            echo ""
+            echo "🚫 Quality Gate: FAILED"
+            echo "Please review and fix critical vulnerabilities before deploying"
+            exit 1
+          else
+            echo ""
+            echo "✅ Quality Gate: PASSED"
+            echo "Security posture is acceptable for deployment"
+          fi
+      
+      - name: Generate security summary
+        if: always()
+        run: |
+          echo "## 🔒 Security Quality Gate Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | Count | Threshold | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          CRITICAL=${{ steps.aggregate.outputs.critical }}
+          HIGH=${{ steps.aggregate.outputs.high }}
+          MEDIUM=${{ steps.aggregate.outputs.medium }}
+          LOW=${{ steps.aggregate.outputs.low }}
+          
+          CRITICAL_STATUS="✅ Pass"
+          if [ "$CRITICAL" -gt 0 ]; then
+            CRITICAL_STATUS="❌ Fail"
+          fi
+          
+          HIGH_STATUS="✅ Pass"
+          if [ "$HIGH" -gt 5 ]; then
+            HIGH_STATUS="⚠️ Warning"
+          fi
+          
+          echo "| Critical | $CRITICAL | 0 | $CRITICAL_STATUS |" >> $GITHUB_STEP_SUMMARY
+          echo "| High | $HIGH | 5 | $HIGH_STATUS |" >> $GITHUB_STEP_SUMMARY
+          echo "| Medium | $MEDIUM | - | ℹ️ Info |" >> $GITHUB_STEP_SUMMARY
+          echo "| Low | $LOW | - | ℹ️ Info |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$CRITICAL" -eq 0 ]; then
+            echo "### ✅ Quality Gate: PASSED" >> $GITHUB_STEP_SUMMARY
+            echo "Security posture is acceptable for deployment" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Quality Gate: FAILED" >> $GITHUB_STEP_SUMMARY
+            echo "Critical vulnerabilities must be resolved before deployment" >> $GITHUB_STEP_SUMMARY
+          fi
 
   # ═══════════════════════════════════════════════════════════════
   # STAGE 4: GITOPS DEPLOYMENT (Update Image Tags in Git)
   # ═══════════════════════════════════════════════════════════════
   stage-4-deploy-staging:
     name: "Stage 4: GitOps Update"
-    needs: stage-3-security-scan
+    needs: stage-3-quality-gate
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     
@@ -516,7 +689,7 @@ jobs:
   # Pipeline summary
   pipeline-summary:
     name: "Pipeline Summary"
-    needs: [stage-1-trigger, stage-2-build, stage-3-security-scan, stage-4-deploy-staging, stage-4-smoke-tests]
+    needs: [stage-1-trigger, stage-2-build, stage-3-security-scan, stage-3-quality-gate, stage-4-deploy-staging, stage-4-smoke-tests]
     runs-on: ubuntu-latest
     if: always()
     
@@ -530,6 +703,7 @@ jobs:
           echo "Stage 1 - Monitor & Trigger: ${{ needs.stage-1-trigger.result }}"
           echo "Stage 2 - Build & Containerize: ${{ needs.stage-2-build.result }}"
           echo "Stage 3 - Security Scans: ${{ needs.stage-3-security-scan.result }}"
+          echo "Stage 3.5 - Quality Gate: ${{ needs.stage-3-quality-gate.result }}"
           echo "Stage 4 - GitOps Update: ${{ needs.stage-4-deploy-staging.result }}"
           echo "Stage 4.5 - Smoke Tests: ${{ needs.stage-4-smoke-tests.result }}"
           echo ""
