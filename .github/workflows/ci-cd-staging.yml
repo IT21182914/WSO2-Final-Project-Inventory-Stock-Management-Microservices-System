@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository_owner }}/inventory-system
+  IMAGE_PREFIX: it21182914/inventory-system
 
 jobs:
   # ═══════════════════════════════════════════════════════════════
