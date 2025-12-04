@@ -73,6 +73,14 @@ jobs:
             VCS_REF=${{ github.sha }}
             VERSION=${{ github.ref_name }}
       
+      - name: Install Trivy
+        if: github.event_name != 'pull_request' || github.event.inputs.push_images == 'true'
+        run: |
+          sudo apt-get update && sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update && sudo apt-get install -y trivy
+      
       - name: Run Trivy vulnerability scanner
         if: github.event_name != 'pull_request' || github.event.inputs.push_images == 'true'
         run: |
@@ -131,6 +139,14 @@ jobs:
             BUILD_DATE=${{ github.event.repository.updated_at }}
             VCS_REF=${{ github.sha }}
             VERSION=${{ github.ref_name }}
+      
+      - name: Install Trivy
+        if: github.event_name != 'pull_request' || github.event.inputs.push_images == 'true'
+        run: |
+          sudo apt-get update && sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update && sudo apt-get install -y trivy
       
       - name: Run Trivy vulnerability scanner
         if: github.event_name != 'pull_request' || github.event.inputs.push_images == 'true'
