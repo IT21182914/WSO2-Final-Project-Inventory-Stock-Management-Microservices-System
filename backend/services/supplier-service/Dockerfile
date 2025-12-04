@@ -1,8 +1,8 @@
 FROM node:18-alpine
 WORKDIR /app
 
-# Upgrade npm and fix glob vulnerability CVE-2025-64756
-RUN npm install -g npm@latest && \
+# Upgrade npm to latest compatible with Node 18 and fix glob vulnerability CVE-2025-64756
+RUN npm install -g npm@10.9.2 && \
     npm cache clean --force
 
 COPY package*.json ./
