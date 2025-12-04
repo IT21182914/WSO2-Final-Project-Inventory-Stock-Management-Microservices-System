@@ -146,6 +146,25 @@ class AuthController {
         user = await User.findById(userId);
       }
 
+      // Auto-create user if they don't exist (new Asgardeo registration)
+      if (!user && userEmail) {
+        logger.info(`Auto-creating user from Asgardeo: ${userEmail}`);
+        
+        const username = req.user.username || userEmail.split('@')[0];
+        const full_name = req.user.name || req.user.given_name || username;
+        
+        // Create user with supplier role by default
+        user = await User.create({
+          username: username,
+          email: userEmail,
+          password_hash: await bcrypt.hash(Math.random().toString(36), 10), // Random password (not used)
+          full_name: full_name,
+          role: 'supplier' // Default role for new Asgardeo users
+        });
+
+        logger.info(`New Asgardeo user created: ${user.email} with role: supplier`);
+      }
+
       if (!user) {
         return res.status(404).json({
           success: false,

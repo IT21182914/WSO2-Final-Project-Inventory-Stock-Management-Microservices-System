@@ -98,13 +98,41 @@ export const AsgardeoAuthProvider = ({ children }) => {
           };
 
           console.log("✅ Mapped user:", mappedUser);
-          setUser(mappedUser);
 
-          // Store token in API service
+          // Store token first so API calls can use it
           if (accessToken) {
             localStorage.setItem("asgardeo_token", accessToken);
             console.log("💾 Token stored in localStorage");
           }
+
+          // Sync user with backend database (auto-creates if new user)
+          try {
+            const response = await fetch(
+              `${import.meta.env.VITE_USER_SERVICE_URL || 'http://localhost:3001'}/api/auth/profile`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
+
+            if (response.ok) {
+              const profileData = await response.json();
+              console.log("✅ User synced with backend:", profileData.data);
+              // Update role from backend if different
+              if (profileData.data.role) {
+                mappedUser.role = profileData.data.role;
+              }
+            } else {
+              console.warn("⚠️ Could not sync user with backend:", response.status);
+            }
+          } catch (syncError) {
+            console.error("❌ Error syncing user with backend:", syncError);
+            // Continue anyway - user can still use the app
+          }
+
+          setUser(mappedUser);
         } else {
           console.log("❌ User is not authenticated");
           setUser(null);
@@ -134,8 +162,8 @@ export const AsgardeoAuthProvider = ({ children }) => {
     console.log("🔍 Mapping groups to role:", groups);
 
     if (!groups || groups.length === 0) {
-      console.warn("⚠️ No groups found - defaulting to warehouse_staff");
-      return "warehouse_staff"; // Changed default from customer to warehouse_staff
+      console.warn("⚠️ No groups found - defaulting to supplier");
+      return "supplier"; // Default to supplier for new registrations
     }
 
     // Check for admin role
@@ -162,9 +190,9 @@ export const AsgardeoAuthProvider = ({ children }) => {
       return "supplier";
     }
 
-    // Default to warehouse_staff if no match
-    console.warn("⚠️ No matching group - defaulting to warehouse_staff");
-    return "warehouse_staff";
+    // Default to supplier if no match (for new users)
+    console.warn("⚠️ No matching group - defaulting to supplier");
+    return "supplier";
   };
 
   const login = async () => {
