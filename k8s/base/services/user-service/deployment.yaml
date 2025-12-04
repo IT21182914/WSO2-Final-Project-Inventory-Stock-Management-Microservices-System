@@ -39,7 +39,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: user-service
-        image: ghcr.io/it21182914/user-service:37c9154
+        image: ghcr.io/it21182914/user-service:4c02f50
         imagePullPolicy: Always
         ports:
         - name: http
