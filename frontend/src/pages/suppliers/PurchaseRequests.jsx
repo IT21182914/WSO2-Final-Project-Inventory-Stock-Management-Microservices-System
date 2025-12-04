@@ -29,13 +29,29 @@ const PurchaseRequests = () => {
   });
 
   useEffect(() => {
-    fetchRequests();
-  }, []);
+    if (user?.supplier_id) {
+      fetchRequests();
+    }
+  }, [user?.supplier_id]);
 
   const fetchRequests = async () => {
     try {
       setLoading(true);
-      const response = await supplierService.getAllPurchaseOrders();
+
+      // Get supplier ID from user backend data
+      const supplierId = user?.supplier_id;
+
+      if (!supplierId) {
+        toast.error("Supplier ID not found. Please contact administrator.");
+        setLoading(false);
+        return;
+      }
+
+      // Fetch only purchase orders for this supplier
+      const response = await supplierService.getAllPurchaseOrders({
+        supplier_id: supplierId,
+      });
+
       setRequests(response.data || []);
     } catch (error) {
       console.error("Error fetching requests:", error);
@@ -46,10 +62,17 @@ const PurchaseRequests = () => {
   };
 
   const handleRespond = (request) => {
+    // Security check: Verify this request belongs to the logged-in supplier
+    if (request.supplier_id !== user?.supplier_id) {
+      toast.error("You can only respond to your own purchase requests");
+      return;
+    }
+
     setSelectedRequest(request);
     setResponseData({
       response: "approved",
       approved_quantity: request.requested_quantity || "",
+      quoted_amount: "",
       rejection_reason: "",
       estimated_delivery_date: "",
       supplier_notes: "",
@@ -58,6 +81,12 @@ const PurchaseRequests = () => {
   };
 
   const handleShip = (request) => {
+    // Security check: Verify this request belongs to the logged-in supplier
+    if (request.supplier_id !== user?.supplier_id) {
+      toast.error("You can only manage your own purchase orders");
+      return;
+    }
+
     setSelectedRequest(request);
     setShipData({
       tracking_number: "",
@@ -68,6 +97,29 @@ const PurchaseRequests = () => {
 
   const submitResponse = async (e) => {
     e.preventDefault();
+
+    // Validation
+    if (responseData.response === "approved") {
+      if (
+        !responseData.approved_quantity ||
+        parseInt(responseData.approved_quantity) < 1
+      ) {
+        toast.error("Please enter a valid approved quantity");
+        return;
+      }
+      if (
+        !responseData.quoted_amount ||
+        parseFloat(responseData.quoted_amount) <= 0
+      ) {
+        toast.error("Please enter a valid price quote");
+        return;
+      }
+      if (!responseData.estimated_delivery_date) {
+        toast.error("Please select an estimated delivery date");
+        return;
+      }
+    }
+
     try {
       // Convert quantity to integer
       const payload = {
@@ -83,7 +135,7 @@ const PurchaseRequests = () => {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${localStorage.getItem("asgardeo_token")}`,
           },
           body: JSON.stringify(payload),
         }
@@ -111,7 +163,7 @@ const PurchaseRequests = () => {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${localStorage.getItem("asgardeo_token")}`,
           },
           body: JSON.stringify(shipData),
         }
@@ -308,6 +360,30 @@ const PurchaseRequests = () => {
               <h2 className="text-2xl font-bold mb-4">
                 Respond to Purchase Request
               </h2>
+
+              {/* Request Summary */}
+              {selectedRequest && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <h3 className="font-semibold text-blue-900 mb-2">
+                    Request Details
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-gray-600">Requested Quantity:</span>
+                      <span className="ml-2 font-semibold">
+                        {selectedRequest.requested_quantity || "N/A"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Total Amount:</span>
+                      <span className="ml-2 font-semibold">
+                        ${selectedRequest.total_amount || "0.00"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={submitResponse} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">
@@ -330,21 +406,72 @@ const PurchaseRequests = () => {
 
                 {responseData.response === "approved" && (
                   <>
+                    <div>
+                      <Input
+                        label={`Approved Quantity * (Max: ${
+                          selectedRequest?.requested_quantity || "N/A"
+                        })`}
+                        type="number"
+                        min="1"
+                        max={selectedRequest?.requested_quantity || 10000}
+                        step="1"
+                        value={responseData.approved_quantity}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value);
+                          if (value < 1) {
+                            toast.error("Quantity must be at least 1");
+                            return;
+                          }
+                          if (
+                            selectedRequest?.requested_quantity &&
+                            value > selectedRequest.requested_quantity
+                          ) {
+                            toast.error(
+                              `Approved quantity cannot exceed requested quantity (${selectedRequest.requested_quantity})`
+                            );
+                            return;
+                          }
+                          setResponseData({
+                            ...responseData,
+                            approved_quantity: e.target.value,
+                          });
+                        }}
+                        required
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        💡 Tip: You can approve less if you have limited stock,
+                        but not more than requested
+                      </p>
+                    </div>
                     <Input
-                      label="Approved Quantity/Amount"
+                      label="Quoted Price (Total Amount) *"
                       type="number"
-                      value={responseData.approved_quantity}
-                      onChange={(e) =>
+                      step="0.01"
+                      min="0.01"
+                      value={responseData.quoted_amount || ""}
+                      onChange={(e) => {
+                        const amount = parseFloat(e.target.value);
+                        const quantity = parseInt(
+                          responseData.approved_quantity
+                        );
+                        if (amount && quantity) {
+                          const pricePerUnit = amount / quantity;
+                          if (pricePerUnit < 0.01) {
+                            toast.error("Price per unit seems too low");
+                          }
+                        }
                         setResponseData({
                           ...responseData,
-                          approved_quantity: e.target.value,
-                        })
-                      }
+                          quoted_amount: e.target.value,
+                        });
+                      }}
                       required
+                      placeholder="Enter your price quote"
                     />
                     <Input
-                      label="Estimated Delivery Date"
+                      label="Estimated Delivery Date *"
                       type="date"
+                      min={new Date().toISOString().split("T")[0]}
                       value={responseData.estimated_delivery_date}
                       onChange={(e) =>
                         setResponseData({
@@ -360,7 +487,7 @@ const PurchaseRequests = () => {
                 {responseData.response === "rejected" && (
                   <div>
                     <label className="block text-sm font-medium mb-2">
-                      Rejection Reason
+                      Rejection Reason (Optional)
                     </label>
                     <textarea
                       value={responseData.rejection_reason}
@@ -372,7 +499,7 @@ const PurchaseRequests = () => {
                       }
                       className="w-full border rounded-lg px-3 py-2"
                       rows="3"
-                      required
+                      placeholder="Explain why the request is being rejected..."
                     />
                   </div>
                 )}

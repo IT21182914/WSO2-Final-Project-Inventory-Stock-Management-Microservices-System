@@ -32,16 +32,36 @@ const PurchaseOrders = () => {
   });
   const [formData, setFormData] = useState({
     supplier_id: "",
+    product_id: "",
+    requested_quantity: "",
     order_date: new Date().toISOString().split("T")[0],
     expected_delivery_date: "",
-    total_amount: "",
     status: "pending",
     notes: "",
   });
+  const [products, setProducts] = useState([]);
 
   useEffect(() => {
     fetchData();
+    fetchProducts();
   }, []);
+
+  const fetchProducts = async () => {
+    try {
+      const response = await fetch(
+        "http://localhost:3002/api/products?status=active",
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("asgardeo_token")}`,
+          },
+        }
+      );
+      const data = await response.json();
+      setProducts(data.data || []);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -74,15 +94,48 @@ const PurchaseOrders = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+
+    // Validate requested quantity
+    if (name === "requested_quantity") {
+      const qty = parseInt(value);
+      if (qty < 1) {
+        toast.error("Quantity must be at least 1");
+        return;
+      }
+      if (qty > 10000) {
+        toast.error("Quantity cannot exceed 10,000 units per order");
+        return;
+      }
+    }
+
+    // Validate expected delivery date is after order date
+    if (name === "expected_delivery_date") {
+      const orderDate = formData.order_date;
+      if (orderDate && value && new Date(value) <= new Date(orderDate)) {
+        toast.error("Expected delivery date must be after order date");
+        return;
+      }
+    }
+
+    // Validate order date is not after expected delivery date
+    if (name === "order_date") {
+      const deliveryDate = formData.expected_delivery_date;
+      if (deliveryDate && value && new Date(value) >= new Date(deliveryDate)) {
+        toast.error("Order date must be before expected delivery date");
+        return;
+      }
+    }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const resetForm = () => {
     setFormData({
       supplier_id: "",
+      product_id: "",
+      requested_quantity: "",
       order_date: new Date().toISOString().split("T")[0],
       expected_delivery_date: "",
-      total_amount: "",
       status: "pending",
       notes: "",
     });
@@ -92,11 +145,27 @@ const PurchaseOrders = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Final validation before submit
+    if (!formData.product_id) {
+      toast.error("Please select a product");
+      return;
+    }
+    if (
+      !formData.requested_quantity ||
+      parseInt(formData.requested_quantity) < 1
+    ) {
+      toast.error("Please enter a valid quantity");
+      return;
+    }
+
     try {
       const poData = {
         ...formData,
         supplier_id: parseInt(formData.supplier_id),
-        total_amount: parseFloat(formData.total_amount),
+        product_id: parseInt(formData.product_id),
+        requested_quantity: parseInt(formData.requested_quantity),
+        total_amount: 0, // Will be set by supplier when they quote
       };
 
       if (editingPO) {
@@ -120,9 +189,10 @@ const PurchaseOrders = () => {
     setEditingPO(po);
     setFormData({
       supplier_id: po.supplier_id,
+      product_id: po.product_id || "",
+      requested_quantity: po.requested_quantity || "",
       order_date: po.order_date?.split("T")[0] || "",
       expected_delivery_date: po.expected_delivery_date?.split("T")[0] || "",
-      total_amount: po.total_amount,
       status: po.status,
       notes: po.notes || "",
     });
@@ -420,15 +490,38 @@ const PurchaseOrders = () => {
                   </div>
                 )}
                 {canManagePO && (
+                  <div>
+                    <label className="block text-sm font-medium text-dark-700 mb-2">
+                      Product *
+                    </label>
+                    <select
+                      name="product_id"
+                      className="w-full px-3 py-2 border border-dark-300 rounded-lg"
+                      value={formData.product_id}
+                      onChange={handleInputChange}
+                      required
+                    >
+                      <option value="">Select Product</option>
+                      {products.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name} ({product.sku})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {canManagePO && (
                   <Input
-                    label="Total Amount *"
-                    name="total_amount"
+                    label="Requested Quantity *"
+                    name="requested_quantity"
                     type="number"
-                    step="0.01"
-                    value={formData.total_amount}
+                    min="1"
+                    max="10000"
+                    step="1"
+                    value={formData.requested_quantity}
                     onChange={handleInputChange}
                     required
-                    placeholder="0.00"
+                    placeholder="e.g., 100"
                   />
                 )}
                 {canManagePO && (
@@ -438,6 +531,7 @@ const PurchaseOrders = () => {
                     type="date"
                     value={formData.order_date}
                     onChange={handleInputChange}
+                    min={new Date().toISOString().split("T")[0]}
                     required
                   />
                 )}
@@ -447,6 +541,10 @@ const PurchaseOrders = () => {
                   type="date"
                   value={formData.expected_delivery_date}
                   onChange={handleInputChange}
+                  min={
+                    formData.order_date ||
+                    new Date().toISOString().split("T")[0]
+                  }
                 />
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-dark-700 mb-2">
