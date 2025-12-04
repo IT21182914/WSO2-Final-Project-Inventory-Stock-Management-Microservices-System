@@ -51,7 +51,7 @@ const isDevelopment = import.meta.env.MODE === 'development';
 const API_GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL || '';
 
 // In development: call each microservice directly
-// In staging/production: call through API gateway
+// In staging/production: call through API gateway (services are at /api/*)
 export const SERVICES = isDevelopment ? {
   PRODUCT: import.meta.env.VITE_PRODUCT_SERVICE_URL || "http://localhost:3002",
   INVENTORY: import.meta.env.VITE_INVENTORY_SERVICE_URL || "http://localhost:3003",
@@ -59,10 +59,11 @@ export const SERVICES = isDevelopment ? {
   ORDER: import.meta.env.VITE_ORDER_SERVICE_URL || "http://localhost:3005",
   IDENTITY: import.meta.env.VITE_IDENTITY_SERVICE_URL || "http://localhost:3006",
 } : {
-  // All services go through API gateway in non-dev environments
-  PRODUCT: `${API_GATEWAY_URL}/product-catalog`,
-  INVENTORY: `${API_GATEWAY_URL}/inventory`,
-  SUPPLIER: `${API_GATEWAY_URL}/supplier`,
-  ORDER: `${API_GATEWAY_URL}/order`,
-  IDENTITY: `${API_GATEWAY_URL}/identity`,
+  // In production, all API calls go through the same gateway/proxy
+  // The frontend nginx proxies /api/* to the API gateway
+  PRODUCT: API_GATEWAY_URL,
+  INVENTORY: API_GATEWAY_URL,
+  SUPPLIER: API_GATEWAY_URL,
+  ORDER: API_GATEWAY_URL,
+  IDENTITY: API_GATEWAY_URL,
 };
