@@ -13,7 +13,7 @@ const ProductAdd = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditMode = !!id;
-  
+
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(isEditMode);
   const [categories, setCategories] = useState([]);
@@ -105,10 +105,12 @@ const ProductAdd = () => {
         await productService.createProduct(productData);
         toast.success("Product created successfully");
       }
-      
+
       navigate("/products");
     } catch (error) {
-      toast.error(isEditMode ? "Failed to update product" : "Failed to create product");
+      toast.error(
+        isEditMode ? "Failed to update product" : "Failed to create product"
+      );
       console.error("Error saving product:", error);
     } finally {
       setLoading(false);
@@ -135,7 +137,9 @@ const ProductAdd = () => {
             {isEditMode ? "Edit Product" : "Add New Product"}
           </h1>
           <p className="text-dark-600 mt-2">
-            {isEditMode ? "Update product information" : "Create a new product in your catalog"}
+            {isEditMode
+              ? "Update product information"
+              : "Create a new product in your catalog"}
           </p>
         </div>
       </div>
