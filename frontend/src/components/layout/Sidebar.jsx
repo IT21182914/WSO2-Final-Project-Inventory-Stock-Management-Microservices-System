@@ -100,6 +100,12 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       roles: ["admin", "warehouse_staff"],
     },
     {
+      name: "User Management",
+      path: "/users",
+      icon: Users,
+      roles: ["admin"],
+    },
+    {
       name: "Health Monitor",
       path: "/health",
       icon: Activity,

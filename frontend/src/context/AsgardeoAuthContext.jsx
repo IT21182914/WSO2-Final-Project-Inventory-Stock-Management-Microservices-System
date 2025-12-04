@@ -108,11 +108,13 @@ export const AsgardeoAuthProvider = ({ children }) => {
           // Sync user with backend database (auto-creates if new user)
           try {
             const response = await fetch(
-              `${import.meta.env.VITE_USER_SERVICE_URL || 'http://localhost:3001'}/api/auth/profile`,
+              `${
+                import.meta.env.VITE_USER_SERVICE_URL || "http://localhost:3001"
+              }/api/auth/profile`,
               {
                 headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${accessToken}`,
+                  "Content-Type": "application/json",
                 },
               }
             );
@@ -125,7 +127,10 @@ export const AsgardeoAuthProvider = ({ children }) => {
                 mappedUser.role = profileData.data.role;
               }
             } else {
-              console.warn("⚠️ Could not sync user with backend:", response.status);
+              console.warn(
+                "⚠️ Could not sync user with backend:",
+                response.status
+              );
             }
           } catch (syncError) {
             console.error("❌ Error syncing user with backend:", syncError);

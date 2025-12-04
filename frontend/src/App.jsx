@@ -49,6 +49,9 @@ import OrderList from "./pages/orders/OrderList";
 import OrderDetails from "./pages/orders/OrderDetails";
 import OrderCreate from "./pages/orders/OrderCreate";
 
+// User Pages
+import UserManagement from "./pages/users/UserManagement";
+
 // System Pages
 import HealthMonitoring from "./pages/system/HealthMonitoring";
 import NotFound from "./pages/NotFound";
@@ -121,6 +124,16 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={["admin", "supplier"]}>
                     <SupplierDashboard />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* User Management Routes */}
+              <Route
+                path="/users"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <UserManagement />
                   </ProtectedRoute>
                 }
               />
@@ -265,6 +278,16 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={["admin", "warehouse_staff"]}>
                     <OrderDetails />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* User Management Routes */}
+              <Route
+                path="/users"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <UserManagement />
                   </ProtectedRoute>
                 }
               />

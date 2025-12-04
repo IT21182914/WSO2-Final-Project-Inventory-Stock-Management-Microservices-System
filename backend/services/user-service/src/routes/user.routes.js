@@ -18,6 +18,7 @@ router.get("/", userController.getAllUsers);
 router.get("/:id", userController.getUserById);
 router.post("/", validateCreateUser, userController.createUser);
 router.put("/:id", validateUpdateUser, userController.updateUser);
+router.patch("/:id/role", userController.updateUserRole);
 router.delete("/:id", userController.deleteUser);
 
 module.exports = router;

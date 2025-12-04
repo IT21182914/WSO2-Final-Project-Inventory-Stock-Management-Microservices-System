@@ -10,7 +10,8 @@ const userApi = axios.create({
 
 // Add token to requests
 userApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const token =
+    localStorage.getItem("asgardeo_token") || localStorage.getItem("token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -39,6 +40,13 @@ export const userService = {
       `${API_ENDPOINTS.USERS}/${id}`,
       userData
     );
+    return response.data;
+  },
+
+  updateUserRole: async (id, role) => {
+    const response = await userApi.patch(`${API_ENDPOINTS.USERS}/${id}/role`, {
+      role,
+    });
     return response.data;
   },
 

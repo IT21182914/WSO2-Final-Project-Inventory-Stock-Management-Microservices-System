@@ -165,6 +165,52 @@ class UserController {
     }
   }
 
+  async updateUserRole(req, res) {
+    try {
+      const { id } = req.params;
+      const { role } = req.body;
+
+      // Validate role
+      const validRoles = ["admin", "warehouse_staff", "supplier"];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid role. Must be one of: admin, warehouse_staff, supplier",
+        });
+      }
+
+      const updatedUser = await User.update(id, { role });
+
+      if (!updatedUser) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      logger.info(`User role updated: ${updatedUser.email} -> ${role}`);
+
+      res.json({
+        success: true,
+        message: "User role updated successfully",
+        data: {
+          id: updatedUser.id,
+          username: updatedUser.username,
+          email: updatedUser.email,
+          role: updatedUser.role,
+        },
+      });
+    } catch (error) {
+      logger.error("Update user role error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Error updating user role",
+        error: error.message,
+      });
+    }
+  }
+
   async deleteUser(req, res) {
     try {
       const { id } = req.params;
