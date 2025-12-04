@@ -78,12 +78,12 @@ jobs:
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ steps.image-tag.outputs.tag }}"
           echo "Scanning image: $IMAGE"
-          trivy image --format sarif -o trivy-results-${{ matrix.service }}.sarif "$IMAGE" || true
+          trivy image --format sarif --output trivy-results-${{ matrix.service }}.sarif "$IMAGE" --exit-code 0
         continue-on-error: true
       
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
-        if: always() && hashFiles('trivy-results-${{ matrix.service }}.sarif') != ''
+        if: always()
         with:
           sarif_file: 'trivy-results-${{ matrix.service }}.sarif'
         continue-on-error: true
@@ -137,12 +137,12 @@ jobs:
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend:${{ steps.image-tag.outputs.tag }}"
           echo "Scanning image: $IMAGE"
-          trivy image --format sarif -o trivy-results-frontend.sarif "$IMAGE" || true
+          trivy image --format sarif --output trivy-results-frontend.sarif "$IMAGE" --exit-code 0
         continue-on-error: true
       
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
-        if: always() && hashFiles('trivy-results-frontend.sarif') != ''
+        if: always()
         with:
           sarif_file: 'trivy-results-frontend.sarif'
         continue-on-error: true

@@ -5,6 +5,10 @@ WORKDIR /app
 # Install build dependencies for native modules like bcrypt
 RUN apk add --no-cache python3 make g++
 
+# Upgrade npm and fix glob vulnerability CVE-2025-64756
+RUN npm install -g npm@latest && \
+    npm cache clean --force
+
 # Copy package files
 COPY package*.json ./
 
