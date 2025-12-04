@@ -1,15 +1,22 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Save } from "lucide-react";
 import Card from "../../components/common/Card";
 import Button from "../../components/common/Button";
 import Input from "../../components/common/Input";
+import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { productService } from "../../services/productService";
+import axios from "../../utils/axios";
 import toast from "react-hot-toast";
 
 const ProductAdd = () => {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditMode = !!id;
+  
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(isEditMode);
+  const [categories, setCategories] = useState([]);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -19,6 +26,45 @@ const ProductAdd = () => {
     size: "",
     color: "",
   });
+
+  useEffect(() => {
+    fetchCategories();
+    if (isEditMode) {
+      fetchProduct();
+    }
+  }, [id]);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await axios.get("http://localhost:3002/api/categories");
+      setCategories(res.data.data || []);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+    }
+  };
+
+  const fetchProduct = async () => {
+    try {
+      setPageLoading(true);
+      const response = await productService.getProductById(id);
+      const product = response.data;
+      setFormData({
+        name: product.name || "",
+        description: product.description || "",
+        sku: product.sku || "",
+        unit_price: product.unit_price || "",
+        category_id: product.category_id || "",
+        size: product.size || "",
+        color: product.color || "",
+      });
+    } catch (error) {
+      console.error("Error fetching product:", error);
+      toast.error("Failed to load product data");
+      navigate("/products");
+    } finally {
+      setPageLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -33,7 +79,7 @@ const ProductAdd = () => {
     setLoading(true);
 
     try {
-      // Prepare data - remove empty strings and is_active for creation
+      // Prepare data
       const productData = {
         name: formData.name,
         sku: formData.sku,
@@ -52,16 +98,26 @@ const ProductAdd = () => {
         productData.color = formData.color;
       }
 
-      await productService.createProduct(productData);
-      toast.success("Product created successfully");
+      if (isEditMode) {
+        await productService.updateProduct(id, productData);
+        toast.success("Product updated successfully");
+      } else {
+        await productService.createProduct(productData);
+        toast.success("Product created successfully");
+      }
+      
       navigate("/products");
     } catch (error) {
-      toast.error("Failed to create product");
-      console.error("Error creating product:", error);
+      toast.error(isEditMode ? "Failed to update product" : "Failed to create product");
+      console.error("Error saving product:", error);
     } finally {
       setLoading(false);
     }
   };
+
+  if (pageLoading) {
+    return <LoadingSpinner text="Loading product data..." />;
+  }
 
   return (
     <div>
@@ -75,9 +131,11 @@ const ProductAdd = () => {
           <ArrowLeft size={20} />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold text-dark-900">Add New Product</h1>
+          <h1 className="text-3xl font-bold text-dark-900">
+            {isEditMode ? "Edit Product" : "Add New Product"}
+          </h1>
           <p className="text-dark-600 mt-2">
-            Create a new product in your catalog
+            {isEditMode ? "Update product information" : "Create a new product in your catalog"}
           </p>
         </div>
       </div>
@@ -114,6 +172,26 @@ const ProductAdd = () => {
               required
               placeholder="0.00"
             />
+
+            <div>
+              <label className="block text-sm font-medium text-dark-700 mb-2">
+                Category <span className="text-red-500">*</span>
+              </label>
+              <select
+                name="category_id"
+                value={formData.category_id}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-2 border border-dark-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white text-dark-900"
+              >
+                <option value="">Select a category</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <Input
               label="Size"
@@ -154,7 +232,7 @@ const ProductAdd = () => {
             </Button>
             <Button type="submit" variant="primary" loading={loading}>
               <Save size={18} className="mr-2" />
-              Save Product
+              {isEditMode ? "Update Product" : "Save Product"}
             </Button>
           </div>
         </form>

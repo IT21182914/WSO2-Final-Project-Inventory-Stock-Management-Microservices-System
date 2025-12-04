@@ -84,10 +84,48 @@ const ProductLifecycleManagement = () => {
           notes: `${action} action`,
         }
       );
-      toast.success(`Product ${action} successfully!`);
+      toast.success(`Product ${action.replace(/-/g, " ")} successfully!`);
       fetchData();
     } catch (error) {
-      toast.error(`Error: ${error.response?.data?.message}`);
+      // Parse error message from response
+      const errorData = error.response?.data;
+      const errorMessage = errorData?.error || errorData?.message || error.message;
+      
+      console.error("Product transition error:", errorMessage);
+      
+      // Check for specific validation errors and provide user-friendly feedback
+      if (errorMessage.includes("Category required") || errorMessage.includes("category_id")) {
+        toast.error(
+          "Cannot activate product without a category!\n\n" +
+          "📝 Please edit this product and select a category first.\n" +
+          "Go to: Products → Edit Product → Select Category",
+          { duration: 6000, style: { maxWidth: '500px' } }
+        );
+      } else if (errorMessage.includes("SKU required")) {
+        toast.error(
+          "Cannot activate product without a SKU!\n\n" +
+          "📝 Please edit the product and add a unique SKU code.",
+          { duration: 5000 }
+        );
+      } else if (errorMessage.includes("unit price") || errorMessage.includes("price required") || errorMessage.includes("Valid unit price")) {
+        toast.error(
+          "Cannot activate product without a valid price!\n\n" +
+          "📝 Please edit the product and set a price greater than $0.",
+          { duration: 5000 }
+        );
+      } else if (errorMessage.includes("validation failed")) {
+        // Extract specific validation errors
+        const validationMatch = errorMessage.match(/validation failed: (.+)/);
+        const details = validationMatch ? validationMatch[1] : errorMessage;
+        toast.error(
+          `Product validation failed!\n\n` +
+          `❌ ${details}\n\n` +
+          `Please edit the product and fix the required fields.`,
+          { duration: 6000, style: { maxWidth: '500px' } }
+        );
+      } else {
+        toast.error(`Failed to ${action.replace(/-/g, " ")}: ${errorMessage}`, { duration: 4000 });
+      }
     }
   };
 
@@ -135,6 +173,17 @@ const ProductLifecycleManagement = () => {
     }
 
     return actions;
+  };
+
+  const getActionLabel = (action) => {
+    const labels = {
+      "submit-for-approval": "Submit for Approval",
+      "approve": "Approve",
+      "activate": "Activate",
+      "discontinue": "Discontinue",
+      "archive": "Archive"
+    };
+    return labels[action] || action.replace(/-/g, " ");
   };
 
   if (loading) return <LoadingSpinner />;
@@ -262,7 +311,7 @@ const ProductLifecycleManagement = () => {
                                 handleTransition(product.id, action)
                               }
                             >
-                              {action.replace(/-/g, " ")}
+                              {getActionLabel(action)}
                             </Button>
                           )
                         )}
