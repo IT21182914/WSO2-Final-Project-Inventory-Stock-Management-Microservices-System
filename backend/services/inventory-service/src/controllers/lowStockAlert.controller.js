@@ -7,6 +7,9 @@ class LowStockAlertController {
     try {
       const { status = "active" } = req.query;
 
+      console.log("=== GET LOW STOCK ALERTS ===");
+      console.log("Status filter:", status);
+
       const result = await db.query(
         `SELECT 
           lsa.*,
@@ -19,12 +22,16 @@ class LowStockAlertController {
         [status]
       );
 
+      console.log("Alerts found:", result.rows.length);
+      console.log("Alerts:", JSON.stringify(result.rows, null, 2));
+
       res.json({
         success: true,
         count: result.rows.length,
         data: result.rows,
       });
     } catch (error) {
+      console.error("Get low stock alerts error:", error);
       logger.error("Get low stock alerts error:", error);
       res.status(500).json({
         success: false,
@@ -40,25 +47,49 @@ class LowStockAlertController {
     try {
       await client.query("BEGIN");
 
+      console.log("=== CHECKING LOW STOCK ===");
+
       // Find inventory items below reorder level
       const lowStockItems = await client.query(
         `SELECT 
           i.product_id,
           i.sku,
-          i.quantity as current_quantity,
+          i.available_quantity as current_quantity,
           i.reorder_level
          FROM inventory i
-         WHERE i.quantity <= i.reorder_level
-         AND i.product_id NOT IN (
-           SELECT product_id 
-           FROM low_stock_alerts 
-           WHERE status = 'active'
-         )`
+         WHERE i.available_quantity <= i.reorder_level`
       );
+
+      console.log("Low stock items found:", lowStockItems.rows.length);
+      console.log("Items:", JSON.stringify(lowStockItems.rows, null, 2));
+
+      // Check for existing active alerts
+      const existingAlerts = await client.query(
+        `SELECT product_id FROM low_stock_alerts WHERE status = 'active'`
+      );
+
+      console.log("Existing active alerts:", existingAlerts.rows.length);
+      console.log(
+        "Existing alert product IDs:",
+        existingAlerts.rows.map((a) => a.product_id)
+      );
+
+      // Filter out items that already have active alerts
+      const existingProductIds = new Set(
+        existingAlerts.rows.map((a) => a.product_id)
+      );
+      const itemsToAlert = lowStockItems.rows.filter(
+        (item) => !existingProductIds.has(item.product_id)
+      );
+
+      console.log("Items to create alerts for:", itemsToAlert.length);
 
       // Create alerts for each low stock item
       const alerts = [];
-      for (const item of lowStockItems.rows) {
+      for (const item of itemsToAlert) {
+        console.log(
+          `Creating alert for product ${item.product_id}, SKU: ${item.sku}`
+        );
         const alertResult = await client.query(
           `INSERT INTO low_stock_alerts 
            (product_id, sku, current_quantity, reorder_level, status)
@@ -71,6 +102,7 @@ class LowStockAlertController {
 
       await client.query("COMMIT");
 
+      console.log(`=== CREATED ${alerts.length} NEW LOW STOCK ALERTS ===`);
       logger.info(`Created ${alerts.length} new low stock alerts`);
 
       res.json({
@@ -80,6 +112,7 @@ class LowStockAlertController {
       });
     } catch (error) {
       await client.query("ROLLBACK");
+      console.error("Check low stock error:", error);
       logger.error("Check low stock error:", error);
       res.status(500).json({
         success: false,

@@ -210,26 +210,34 @@ class InventoryBusinessController {
     try {
       const { status = "active" } = req.query;
 
+      console.log("=== GET LOW STOCK ALERTS (Business Controller) ===");
+      console.log("Status filter:", status);
+
       const query = `
         SELECT 
-          sa.*,
+          lsa.*,
           i.warehouse_location,
           i.quantity as actual_quantity,
-          i.reserved_quantity
-        FROM stock_alerts sa
-        JOIN inventory i ON i.product_id = sa.product_id
-        WHERE sa.status = $1
-        ORDER BY sa.created_at DESC
+          i.reserved_quantity,
+          i.available_quantity
+        FROM low_stock_alerts lsa
+        JOIN inventory i ON i.product_id = lsa.product_id
+        WHERE lsa.status = $1
+        ORDER BY lsa.alerted_at DESC
       `;
 
       const db = require("../config/database");
       const result = await db.query(query, [status]);
+
+      console.log("Alerts found:", result.rows.length);
+      console.log("Alerts data:", JSON.stringify(result.rows, null, 2));
 
       res.json({
         success: true,
         data: result.rows,
       });
     } catch (error) {
+      console.error("Error getting low stock alerts:", error);
       logger.error("Error getting low stock alerts:", error);
       res.status(500).json({
         success: false,

@@ -4,12 +4,15 @@ import toast from "react-hot-toast";
 import Card from "../../components/common/Card";
 import Table from "../../components/common/Table";
 import Badge from "../../components/common/Badge";
+import Button from "../../components/common/Button";
+import Input from "../../components/common/Input";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import {
   FiPackage,
   FiAlertTriangle,
   FiTrendingUp,
   FiTrendingDown,
+  FiEdit,
 } from "react-icons/fi";
 
 const InventoryDashboard = () => {
@@ -21,6 +24,16 @@ const InventoryDashboard = () => {
     totalValue: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    adjustment_type: "in",
+    quantity_change: "",
+    warehouse_location: "",
+    reorder_level: "",
+    max_stock_level: "",
+    notes: "",
+  });
 
   useEffect(() => {
     fetchInventory();
@@ -71,6 +84,70 @@ const InventoryDashboard = () => {
       return { label: "Overstock", variant: "info" };
     } else {
       return { label: "In Stock", variant: "success" };
+    }
+  };
+
+  const handleEdit = (item) => {
+    setSelectedItem(item);
+    setEditFormData({
+      adjustment_type: "in",
+      quantity_change: "",
+      warehouse_location: item.warehouse_location || "",
+      reorder_level: item.reorder_level || "",
+      max_stock_level: item.max_stock_level || "",
+      notes: "",
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateInventory = async (e) => {
+    e.preventDefault();
+    try {
+      // If quantity adjustment is provided, call adjust endpoint
+      if (
+        editFormData.quantity_change &&
+        parseInt(editFormData.quantity_change) !== 0
+      ) {
+        await axios.post("http://localhost:3003/api/inventory/adjust", {
+          product_id: selectedItem.product_id,
+          sku: selectedItem.sku,
+          movement_type: editFormData.adjustment_type,
+          quantity: Math.abs(parseInt(editFormData.quantity_change)),
+          notes:
+            editFormData.notes ||
+            `Stock ${editFormData.adjustment_type} adjustment`,
+          performed_by: 1,
+        });
+      }
+
+      // Update location and reorder levels if changed
+      if (
+        editFormData.warehouse_location !== selectedItem.warehouse_location ||
+        editFormData.reorder_level !== selectedItem.reorder_level ||
+        editFormData.max_stock_level !== selectedItem.max_stock_level
+      ) {
+        await axios.put(
+          `http://localhost:3003/api/inventory/product/${selectedItem.product_id}`,
+          {
+            warehouse_location: editFormData.warehouse_location,
+            reorder_level:
+              parseInt(editFormData.reorder_level) ||
+              selectedItem.reorder_level,
+            max_stock_level:
+              parseInt(editFormData.max_stock_level) ||
+              selectedItem.max_stock_level,
+          }
+        );
+      }
+
+      toast.success("Inventory updated successfully!");
+      setShowEditModal(false);
+      fetchInventory();
+    } catch (error) {
+      console.error("Error updating inventory:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to update inventory"
+      );
     }
   };
 
@@ -126,6 +203,16 @@ const InventoryDashboard = () => {
         const status = getStockStatus(row);
         return <Badge variant={status.variant}>{status.label}</Badge>;
       },
+    },
+    {
+      header: "Actions",
+      accessor: "actions",
+      cell: (row) => (
+        <Button size="sm" variant="outline" onClick={() => handleEdit(row)}>
+          <FiEdit size={16} className="mr-1" />
+          Edit
+        </Button>
+      ),
     },
   ];
 
@@ -210,6 +297,133 @@ const InventoryDashboard = () => {
         </div>
         <Table columns={columns} data={inventory} />
       </Card>
+
+      {/* Edit Inventory Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <Card className="max-w-2xl w-full">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold mb-4">
+                Adjust Inventory - SKU: {selectedItem?.sku}
+              </h2>
+              <p className="text-sm text-dark-600 mb-4">
+                Current Stock:{" "}
+                <span className="font-bold text-primary">
+                  {selectedItem?.quantity}
+                </span>{" "}
+                units (Available: {selectedItem?.available_quantity}, Reserved:{" "}
+                {selectedItem?.reserved_quantity})
+              </p>
+              <form onSubmit={handleUpdateInventory} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-dark-700 mb-2">
+                    Adjustment Type
+                  </label>
+                  <select
+                    value={editFormData.adjustment_type}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        adjustment_type: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-2 border border-dark-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white text-dark-900"
+                  >
+                    <option value="in">Stock In (Add)</option>
+                    <option value="out">Stock Out (Remove)</option>
+                    <option value="returned">Returned</option>
+                    <option value="damaged">Damaged</option>
+                    <option value="expired">Expired</option>
+                  </select>
+                </div>
+
+                <Input
+                  label="Quantity to Adjust"
+                  type="number"
+                  value={editFormData.quantity_change}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      quantity_change: e.target.value,
+                    })
+                  }
+                  placeholder="Enter quantity (positive number)"
+                  min="0"
+                />
+
+                <Input
+                  label="Notes"
+                  value={editFormData.notes}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      notes: e.target.value,
+                    })
+                  }
+                  placeholder="Reason for adjustment (optional)"
+                />
+
+                <hr className="my-4" />
+
+                <p className="text-sm font-semibold text-dark-700 mb-2">
+                  Update Inventory Settings
+                </p>
+
+                <Input
+                  label="Warehouse Location"
+                  value={editFormData.warehouse_location}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      warehouse_location: e.target.value,
+                    })
+                  }
+                  placeholder="e.g., Warehouse A, Shelf 12"
+                />
+
+                <Input
+                  label="Reorder Level"
+                  type="number"
+                  value={editFormData.reorder_level}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      reorder_level: parseInt(e.target.value),
+                    })
+                  }
+                  placeholder="Minimum stock level"
+                />
+
+                <Input
+                  label="Max Stock Level"
+                  type="number"
+                  value={editFormData.max_stock_level}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      max_stock_level: parseInt(e.target.value),
+                    })
+                  }
+                  placeholder="Maximum stock capacity"
+                />
+
+                <div className="flex justify-end gap-4 mt-6">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setShowEditModal(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="primary">
+                    Update Inventory
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

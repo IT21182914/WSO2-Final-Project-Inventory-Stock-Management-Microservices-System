@@ -21,23 +21,32 @@ const LowStockAlerts = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
 
-      const [alertsRes, suggestionsRes, statsRes] = await Promise.all([
-        fetch("http://localhost:3003/api/alerts?status=active", {
-          headers: { Authorization: `Bearer ${token}` },
-        }).then((r) => r.json()),
-        fetch("http://localhost:3003/api/alerts/reorder-suggestions", {
-          headers: { Authorization: `Bearer ${token}` },
-        }).then((r) => r.json()),
-        fetch("http://localhost:3003/api/alerts/stats", {
-          headers: { Authorization: `Bearer ${token}` },
-        }).then((r) => r.json()),
+      const [alertsRes, suggestionsRes] = await Promise.all([
+        fetch("http://localhost:3003/api/inventory/alerts"),
+        fetch("http://localhost:3003/api/inventory/reorder-suggestions"),
       ]);
 
-      setAlerts(alertsRes.data || []);
-      setSuggestions(suggestionsRes.data || []);
-      setStats(statsRes.data);
+      const alertsData = await alertsRes.json();
+      const suggestionsData = await suggestionsRes.json();
+
+      setAlerts(alertsData.data || []);
+      setSuggestions(suggestionsData.data || []);
+
+      // Calculate stats from alerts
+      const activeAlerts = (alertsData.data || []).filter(
+        (a) => a.status === "active"
+      );
+      setStats({
+        activeAlerts: activeAlerts.length,
+        resolvedToday: (alertsData.data || []).filter(
+          (a) => a.status === "resolved"
+        ).length,
+        totalValue: activeAlerts.reduce(
+          (sum, alert) => sum + (alert.estimated_value || 0),
+          0
+        ),
+      });
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Failed to load alerts");
@@ -48,21 +57,34 @@ const LowStockAlerts = () => {
 
   const handleCheckStock = async () => {
     try {
+      console.log("=== CHECKING STOCK LEVELS ===");
+      console.log(
+        "Token:",
+        localStorage.getItem("asgardeo_token") ? "Found" : "Missing"
+      );
+
       const response = await fetch("http://localhost:3003/api/alerts/check", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${localStorage.getItem("asgardeo_token")}`,
         },
       });
 
-      if (!response.ok) throw new Error("Failed to check stock");
+      console.log("Response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Error response:", errorData);
+        throw new Error(errorData.message || "Failed to check stock");
+      }
 
       const data = await response.json();
+      console.log("Success response:", data);
       toast.success(data.message);
       fetchData();
     } catch (error) {
       console.error("Error checking stock:", error);
-      toast.error("Failed to check stock");
+      toast.error(error.message || "Failed to check stock");
     }
   };
 
@@ -73,7 +95,7 @@ const LowStockAlerts = () => {
         {
           method: "PATCH",
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${localStorage.getItem("asgardeo_token")}`,
           },
         }
       );
@@ -199,7 +221,7 @@ const LowStockAlerts = () => {
               <div>
                 <p className="text-sm text-dark-600 mb-1">Active Alerts</p>
                 <p className="text-2xl font-bold text-red-600">
-                  {stats.active_alerts}
+                  {stats.activeAlerts}
                 </p>
               </div>
               <AlertTriangle className="text-red-500" size={40} />
@@ -210,7 +232,7 @@ const LowStockAlerts = () => {
               <div>
                 <p className="text-sm text-dark-600 mb-1">Resolved</p>
                 <p className="text-2xl font-bold text-green-600">
-                  {stats.resolved_alerts}
+                  {stats.resolvedToday}
                 </p>
               </div>
               <CheckCircle className="text-green-500" size={40} />
@@ -219,9 +241,9 @@ const LowStockAlerts = () => {
           <Card>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-dark-600 mb-1">Ignored</p>
+                <p className="text-sm text-dark-600 mb-1">Total Value</p>
                 <p className="text-2xl font-bold text-gray-600">
-                  {stats.ignored_alerts}
+                  ${stats.totalValue?.toFixed(2) || "0.00"}
                 </p>
               </div>
               <Package className="text-gray-500" size={40} />
@@ -230,8 +252,10 @@ const LowStockAlerts = () => {
           <Card>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-dark-600 mb-1">Total (30 days)</p>
-                <p className="text-2xl font-bold">{stats.total_alerts}</p>
+                <p className="text-sm text-dark-600 mb-1">
+                  Reorder Suggestions
+                </p>
+                <p className="text-2xl font-bold">{suggestions.length}</p>
               </div>
               <Package className="text-primary" size={40} />
             </div>
