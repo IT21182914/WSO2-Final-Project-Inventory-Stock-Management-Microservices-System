@@ -15,7 +15,7 @@ import AuthLayout from "./layouts/AuthLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
 
 // Auth Pages
-import Login from "./pages/auth/Login";
+import Login from "./pages/auth/AsgardeoLogin";
 import Register from "./pages/auth/Register";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 
