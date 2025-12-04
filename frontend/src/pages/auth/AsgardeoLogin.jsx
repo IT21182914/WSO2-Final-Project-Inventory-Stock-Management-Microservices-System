@@ -1,12 +1,35 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AsgardeoAuthContext";
 import Button from "../../components/common/Button";
-import { LogIn, Shield } from "lucide-react";
+import { LogIn, Shield, LogOut } from "lucide-react";
 
 const Login = () => {
-  const { login, loading: authLoading, isAuthenticated } = useAuth();
+  const {
+    login,
+    logout,
+    loading: authLoading,
+    isAuthenticated,
+    user,
+  } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const role = user.role;
+      if (role === "admin") {
+        navigate("/dashboard/admin", { replace: true });
+      } else if (role === "warehouse_staff") {
+        navigate("/dashboard/warehouse", { replace: true });
+      } else if (role === "supplier") {
+        navigate("/dashboard/supplier", { replace: true });
+      } else {
+        navigate("/products", { replace: true });
+      }
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const handleAsgardeoLogin = async () => {
     setLoading(true);
@@ -18,17 +41,22 @@ const Login = () => {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
   if (isAuthenticated) {
     return (
       <div className="text-center">
         <div className="mb-6">
           <Shield className="w-16 h-16 text-orange-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-dark-900">
-            Already Logged In
-          </h2>
-          <p className="text-dark-600 mt-2">
-            You are already authenticated with Asgardeo
-          </p>
+          <h2 className="text-2xl font-bold text-dark-900">Redirecting...</h2>
+          <p className="text-dark-600 mt-2">Taking you to your dashboard</p>
         </div>
       </div>
     );
