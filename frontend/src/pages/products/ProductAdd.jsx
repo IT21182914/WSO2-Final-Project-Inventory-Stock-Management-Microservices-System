@@ -6,12 +6,14 @@ import Button from "../../components/common/Button";
 import Input from "../../components/common/Input";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { productService } from "../../services/productService";
+import { useAuth } from "../../context/AsgardeoAuthContext";
 import axios from "../../utils/axios";
 import toast from "react-hot-toast";
 
 const ProductAdd = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { user } = useAuth();
   const isEditMode = !!id;
 
   const [loading, setLoading] = useState(false);
@@ -98,6 +100,17 @@ const ProductAdd = () => {
         productData.color = formData.color;
       }
 
+      // Add supplier_id if user is a supplier
+      if (user?.role === "supplier" && user?.supplier_id) {
+        productData.supplier_id = user.supplier_id;
+      }
+
+      console.log("Submitting product data:", productData);
+      console.log("User context:", {
+        role: user?.role,
+        supplier_id: user?.supplier_id,
+      });
+
       if (isEditMode) {
         await productService.updateProduct(id, productData);
         toast.success("Product updated successfully");
@@ -108,10 +121,14 @@ const ProductAdd = () => {
 
       navigate("/products");
     } catch (error) {
+      const errorMsg = error.response?.data?.message || error.message;
       toast.error(
-        isEditMode ? "Failed to update product" : "Failed to create product"
+        isEditMode
+          ? `Failed to update product: ${errorMsg}`
+          : `Failed to create product: ${errorMsg}`
       );
       console.error("Error saving product:", error);
+      console.error("Error response:", error.response?.data);
     } finally {
       setLoading(false);
     }

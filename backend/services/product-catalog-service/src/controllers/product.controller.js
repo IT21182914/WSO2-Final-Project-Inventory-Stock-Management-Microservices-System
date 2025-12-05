@@ -13,6 +13,7 @@ class ProductController {
         color,
         unit_price,
         attributes,
+        supplier_id,
       } = req.body;
 
       const product = await Product.create({
@@ -24,6 +25,7 @@ class ProductController {
         color,
         unit_price,
         attributes,
+        supplier_id,
       });
 
       logger.info(`Product created: ${product.sku} - ${product.name}`);
@@ -45,12 +47,13 @@ class ProductController {
 
   async getAllProducts(req, res) {
     try {
-      const { category_id, is_active, search } = req.query;
+      const { category_id, is_active, search, supplier_id } = req.query;
 
       const filters = {};
       if (category_id) filters.category_id = parseInt(category_id);
       if (is_active !== undefined) filters.is_active = is_active === "true";
       if (search) filters.search = search;
+      if (supplier_id) filters.supplier_id = parseInt(supplier_id);
 
       const products = await Product.findAll(filters);
 

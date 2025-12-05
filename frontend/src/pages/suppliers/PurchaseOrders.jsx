@@ -43,13 +43,21 @@ const PurchaseOrders = () => {
 
   useEffect(() => {
     fetchData();
-    fetchProducts();
   }, []);
 
-  const fetchProducts = async () => {
+  useEffect(() => {
+    // Fetch products when supplier changes
+    if (formData.supplier_id) {
+      fetchProductsBySupplier(formData.supplier_id);
+    } else {
+      setProducts([]);
+    }
+  }, [formData.supplier_id]);
+
+  const fetchProductsBySupplier = async (supplierId) => {
     try {
       const response = await fetch(
-        "http://localhost:3002/api/products?status=active",
+        `http://localhost:3002/api/products?supplier_id=${supplierId}&status=active`,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("asgardeo_token")}`,
@@ -60,6 +68,7 @@ const PurchaseOrders = () => {
       setProducts(data.data || []);
     } catch (error) {
       console.error("Error fetching products:", error);
+      toast.error("Failed to load products for selected supplier");
     }
   };
 
@@ -500,14 +509,27 @@ const PurchaseOrders = () => {
                       value={formData.product_id}
                       onChange={handleInputChange}
                       required
+                      disabled={!formData.supplier_id}
                     >
-                      <option value="">Select Product</option>
+                      <option value="">
+                        {formData.supplier_id
+                          ? products.length > 0
+                            ? "Select Product"
+                            : "No products available for this supplier"
+                          : "Select a supplier first"}
+                      </option>
                       {products.map((product) => (
                         <option key={product.id} value={product.id}>
-                          {product.name} ({product.sku})
+                          {product.name} ({product.sku}) - ${product.unit_price}
                         </option>
                       ))}
                     </select>
+                    {formData.supplier_id && products.length === 0 && (
+                      <p className="text-sm text-orange-600 mt-1">
+                        This supplier has no products. Ask them to add products
+                        first.
+                      </p>
+                    )}
                   </div>
                 )}
                 {canManagePO && (

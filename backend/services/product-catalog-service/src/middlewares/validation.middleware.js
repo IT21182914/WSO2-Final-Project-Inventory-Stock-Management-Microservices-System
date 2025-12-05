@@ -19,6 +19,7 @@ const createProductSchema = Joi.object({
   color: Joi.string().max(50).optional().allow(""),
   unit_price: Joi.number().positive().precision(2).required(),
   attributes: Joi.object().optional(),
+  supplier_id: Joi.number().integer().positive().optional(),
 });
 
 const updateProductSchema = Joi.object({
@@ -31,6 +32,7 @@ const updateProductSchema = Joi.object({
   unit_price: Joi.number().positive().precision(2).optional(),
   attributes: Joi.object().optional(),
   is_active: Joi.boolean().optional(),
+  supplier_id: Joi.number().integer().positive().optional(),
 });
 
 const getProductsByIdsSchema = Joi.object({

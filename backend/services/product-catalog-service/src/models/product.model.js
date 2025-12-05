@@ -12,11 +12,12 @@ class Product {
       color,
       unit_price,
       attributes,
+      supplier_id,
     } = data;
 
     const query = `
-      INSERT INTO products (sku, name, description, category_id, size, color, unit_price, attributes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO products (sku, name, description, category_id, size, color, unit_price, attributes, supplier_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
 
@@ -30,6 +31,7 @@ class Product {
         color,
         unit_price,
         attributes ? JSON.stringify(attributes) : null,
+        supplier_id,
       ]);
       return result.rows[0];
     } catch (error) {
@@ -63,6 +65,12 @@ class Product {
     if (filters.search) {
       query += ` AND (p.name ILIKE $${paramCount} OR p.sku ILIKE $${paramCount} OR p.description ILIKE $${paramCount})`;
       params.push(`%${filters.search}%`);
+      paramCount++;
+    }
+
+    if (filters.supplier_id) {
+      query += ` AND p.supplier_id = $${paramCount}`;
+      params.push(filters.supplier_id);
       paramCount++;
     }
 
