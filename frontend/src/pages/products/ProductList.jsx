@@ -17,23 +17,15 @@ const ProductList = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   const canManageProducts =
-    user?.role === "admin" ||
-    user?.role === "warehouse_staff" ||
-    user?.role === "supplier";
+    user?.role === "admin" || user?.role === "warehouse_staff";
 
   useEffect(() => {
     fetchProducts();
-  }, [user]);
+  }, []);
 
   const fetchProducts = async () => {
     try {
-      // If supplier, fetch only their products
-      const params = {};
-      if (user?.role === "supplier" && user?.supplier_id) {
-        params.supplier_id = user.supplier_id;
-      }
-
-      const response = await productService.getAllProducts(params);
+      const response = await productService.getAllProducts();
       setProducts(response.data || []);
     } catch (error) {
       console.error("Error fetching products:", error);
@@ -57,14 +49,8 @@ const ProductList = () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-dark-900">
-            {user?.role === "supplier" ? "My Products" : "Products"}
-          </h1>
-          <p className="text-dark-600 mt-2">
-            {user?.role === "supplier"
-              ? "Manage products you supply"
-              : "Manage your product catalog"}
-          </p>
+          <h1 className="text-3xl font-bold text-dark-900">Products</h1>
+          <p className="text-dark-600 mt-2">Manage your product catalog</p>
         </div>
         {canManageProducts && (
           <Link to="/products/add">
@@ -147,17 +133,15 @@ const ProductList = () => {
                 : "No Products Found"}
             </h3>
             <p className="text-dark-500 mb-6">
-              {user?.role === "supplier"
-                ? "Start building your product catalog. Add your first product to make it available for warehouse orders."
-                : searchTerm
+              {searchTerm
                 ? "Try adjusting your search criteria"
-                : "No products available in the catalog"}
+                : "No products available in the catalog. Add your first product to get started."}
             </p>
-            {user?.role === "supplier" && (
+            {canManageProducts && !searchTerm && (
               <Link to="/products/add">
                 <Button variant="primary">
                   <Plus size={20} className="mr-2" />
-                  Add Your First Product
+                  Add Product
                 </Button>
               </Link>
             )}

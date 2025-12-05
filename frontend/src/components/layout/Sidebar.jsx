@@ -88,12 +88,6 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       roles: ["supplier"],
     },
     {
-      name: "My Products",
-      path: "/products",
-      icon: Package,
-      roles: ["supplier"],
-    },
-    {
       name: "My Profile",
       path: "/supplier-profile",
       icon: UserCog,
