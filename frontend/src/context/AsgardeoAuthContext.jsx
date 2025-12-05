@@ -122,9 +122,12 @@ export const AsgardeoAuthProvider = ({ children }) => {
             if (response.ok) {
               const profileData = await response.json();
               console.log("✅ User synced with backend:", profileData.data);
-              // Update role from backend if different
+              // Update role and supplier_id from backend if different
               if (profileData.data.role) {
                 mappedUser.role = profileData.data.role;
+              }
+              if (profileData.data.supplier_id) {
+                mappedUser.supplier_id = profileData.data.supplier_id;
               }
             } else {
               console.warn(

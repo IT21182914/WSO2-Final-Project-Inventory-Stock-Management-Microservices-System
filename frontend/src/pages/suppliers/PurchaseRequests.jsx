@@ -29,10 +29,11 @@ const PurchaseRequests = () => {
   });
 
   useEffect(() => {
-    if (user?.supplier_id) {
+    // Wait for user data to load, then fetch requests
+    if (user) {
       fetchRequests();
     }
-  }, [user?.supplier_id]);
+  }, [user]);
 
   const fetchRequests = async () => {
     try {
@@ -42,7 +43,11 @@ const PurchaseRequests = () => {
       const supplierId = user?.supplier_id;
 
       if (!supplierId) {
-        toast.error("Supplier ID not found. Please contact administrator.");
+        console.log("No supplier_id found for user:", user);
+        // For now, fetch all orders for the supplier role
+        // Backend should filter based on authenticated user
+        const response = await supplierService.getAllPurchaseOrders();
+        setRequests(response.data || []);
         setLoading(false);
         return;
       }
