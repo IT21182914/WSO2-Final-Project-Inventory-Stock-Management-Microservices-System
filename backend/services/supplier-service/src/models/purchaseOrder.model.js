@@ -5,6 +5,8 @@ class PurchaseOrder {
   static async create(poData) {
     const {
       supplier_id,
+      product_id,
+      requested_quantity,
       total_amount,
       order_date,
       expected_delivery_date,
@@ -19,14 +21,16 @@ class PurchaseOrder {
       .toUpperCase()}`;
 
     const query = `
-      INSERT INTO purchase_orders (po_number, supplier_id, total_amount, order_date, expected_delivery_date, status, notes, supplier_response)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
+      INSERT INTO purchase_orders (po_number, supplier_id, product_id, requested_quantity, total_amount, order_date, expected_delivery_date, status, notes, supplier_response)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
       RETURNING *
     `;
 
     const values = [
       poNumber,
       supplier_id,
+      product_id,
+      requested_quantity,
       total_amount,
       order_date,
       expected_delivery_date,

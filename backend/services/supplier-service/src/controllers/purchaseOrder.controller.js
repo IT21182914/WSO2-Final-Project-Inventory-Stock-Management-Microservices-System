@@ -9,7 +9,7 @@ const INVENTORY_SERVICE_URL =
 class PurchaseOrderController {
   async createPurchaseOrder(req, res) {
     try {
-      const { supplier_id, product_id, quantity } = req.body;
+      const { supplier_id, product_id, requested_quantity } = req.body;
 
       // Validate that this supplier can provide this product
       const productSupplier = await ProductSupplier.findOne(
@@ -35,7 +35,7 @@ class PurchaseOrderController {
       }
 
       // Check minimum order quantity
-      if (quantity < productSupplier.minimum_order_quantity) {
+      if (requested_quantity < productSupplier.minimum_order_quantity) {
         return res.status(400).json({
           success: false,
           message: `Minimum order quantity for this product from this supplier is ${productSupplier.minimum_order_quantity}`,
@@ -72,15 +72,42 @@ class PurchaseOrderController {
 
       const purchaseOrders = await PurchaseOrder.findAll(filters);
 
+      // Enrich with product details
+      const enrichedOrders = await Promise.all(
+        purchaseOrders.map(async (order) => {
+          if (order.product_id) {
+            try {
+              const productResponse = await axios.get(
+                `${
+                  process.env.PRODUCT_CATALOG_URL ||
+                  "http://product-catalog:3002"
+                }/api/products/${order.product_id}`
+              );
+              return {
+                ...order,
+                product_details: productResponse.data.data || null,
+              };
+            } catch (error) {
+              logger.warn(
+                `Failed to fetch product ${order.product_id}:`,
+                error.message
+              );
+              return order;
+            }
+          }
+          return order;
+        })
+      );
+
       logger.info(
-        `Retrieved ${purchaseOrders.length} purchase orders with filters:`,
+        `Retrieved ${enrichedOrders.length} purchase orders with filters:`,
         filters
       );
 
       res.json({
         success: true,
-        count: purchaseOrders.length,
-        data: purchaseOrders,
+        count: enrichedOrders.length,
+        data: enrichedOrders,
       });
     } catch (error) {
       logger.error("Get all purchase orders error:", error);

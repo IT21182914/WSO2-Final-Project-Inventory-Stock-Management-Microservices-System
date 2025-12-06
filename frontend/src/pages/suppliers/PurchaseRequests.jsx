@@ -298,6 +298,28 @@ const PurchaseRequests = () => {
                           request.supplier_response
                         )}
                       </div>
+
+                      {/* Product Name - Prominently Displayed */}
+                      {request.product_details && (
+                        <div className="mb-3 pb-2 border-b border-gray-200">
+                          <div className="flex items-center gap-2">
+                            <Package className="text-primary-600" size={18} />
+                            <span className="font-semibold text-gray-900 text-base">
+                              {request.product_details.name}
+                            </span>
+                            <span className="text-sm text-gray-500">
+                              (SKU: {request.product_details.sku})
+                            </span>
+                          </div>
+                          <div className="ml-7 text-sm text-gray-600 mt-1">
+                            <span className="font-medium">Quantity:</span>{" "}
+                            <span className="font-semibold text-primary-700">
+                              {request.requested_quantity || 0} units
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
                         <p>
                           <span className="font-medium">Order Date:</span>{" "}
@@ -384,8 +406,48 @@ const PurchaseRequests = () => {
               {selectedRequest && (
                 <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-4">
                   <h3 className="font-semibold text-primary-900 mb-3">
-                    Request Details
+                    Purchase Order Details
                   </h3>
+
+                  {/* Product Information - Highlighted Section */}
+                  {selectedRequest.product_details && (
+                    <div className="bg-white border-2 border-primary-300 rounded-lg p-4 mb-4">
+                      <h4 className="font-semibold text-primary-900 mb-2 flex items-center">
+                        <Package className="mr-2" size={18} />
+                        Product Information
+                      </h4>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="col-span-2">
+                          <span className="text-gray-600">Product Name:</span>
+                          <span className="ml-2 font-bold text-gray-900 text-base">
+                            {selectedRequest.product_details.name}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">SKU:</span>
+                          <span className="ml-2 font-semibold text-gray-900">
+                            {selectedRequest.product_details.sku}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Category:</span>
+                          <span className="ml-2 font-semibold text-gray-900">
+                            {selectedRequest.product_details.category || "N/A"}
+                          </span>
+                        </div>
+                        {selectedRequest.product_details.description && (
+                          <div className="col-span-2">
+                            <span className="text-gray-600">Description:</span>
+                            <p className="text-gray-900 text-sm mt-1">
+                              {selectedRequest.product_details.description}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Order Details */}
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="text-gray-600">PO Number:</span>
@@ -401,10 +463,24 @@ const PurchaseRequests = () => {
                         ).toLocaleDateString()}
                       </span>
                     </div>
+                    {!selectedRequest.product_details && (
+                      <div>
+                        <span className="text-gray-600">Product ID:</span>
+                        <span className="ml-2 font-semibold text-gray-900">
+                          {selectedRequest.product_id || "Not specified"}
+                        </span>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-gray-600">Status:</span>
+                      <span className="ml-2 font-semibold text-gray-900 capitalize">
+                        {selectedRequest.supplier_response || "Pending"}
+                      </span>
+                    </div>
                     <div>
                       <span className="text-gray-600">Requested Quantity:</span>
-                      <span className="ml-2 font-semibold text-gray-900">
-                        {selectedRequest.requested_quantity || 0}
+                      <span className="ml-2 font-bold text-primary-700 text-base">
+                        {selectedRequest.requested_quantity || 0} units
                       </span>
                     </div>
                     <div>
