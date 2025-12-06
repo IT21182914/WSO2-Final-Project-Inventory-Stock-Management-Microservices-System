@@ -117,6 +117,15 @@ const LowStockAlerts = () => {
       render: (row) => `#${row.product_id}`,
     },
     {
+      header: "Product Name",
+      accessor: "product_name",
+      render: (row) => (
+        <span className="font-medium text-dark-900">
+          {row.product_name || "Unknown Product"}
+        </span>
+      ),
+    },
+    {
       header: "SKU",
       accessor: "sku",
     },
@@ -124,7 +133,7 @@ const LowStockAlerts = () => {
       header: "Current Stock",
       accessor: "current_quantity",
       render: (row) => (
-        <span className="font-semibold text-red-600">
+        <span className="font-semibold text-primary">
           {row.current_quantity}
         </span>
       ),

@@ -248,15 +248,26 @@ class InventoryBusinessController {
             { ids: productIds }
           );
 
-          const activeProductIds = new Set(
-            productsResponse.data.data
-              .filter((p) => p.lifecycle_state === "active")
-              .map((p) => p.id)
+          const activeProducts = productsResponse.data.data.filter(
+            (p) => p.lifecycle_state === "active"
           );
 
-          filteredAlerts = result.rows.filter((alert) =>
-            activeProductIds.has(alert.product_id)
-          );
+          const activeProductIds = new Set(activeProducts.map((p) => p.id));
+
+          // Create product name lookup map
+          const productNameMap = {};
+          activeProducts.forEach((p) => {
+            productNameMap[p.id] = p.name;
+          });
+
+          // Filter for active products and enrich with product names
+          filteredAlerts = result.rows
+            .filter((alert) => activeProductIds.has(alert.product_id))
+            .map((alert) => ({
+              ...alert,
+              product_name:
+                productNameMap[alert.product_id] || "Unknown Product",
+            }));
 
           console.log("Active product alerts:", filteredAlerts.length);
         } catch (error) {
