@@ -39,7 +39,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: inventory-service
-        image: ghcr.io/it21182914/inventory-service:855bc7f
+        image: ghcr.io/it21182914/inventory-service:bb9345d
         imagePullPolicy: Always
         ports:
         - name: http
