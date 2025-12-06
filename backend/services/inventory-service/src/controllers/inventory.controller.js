@@ -161,8 +161,10 @@ class InventoryController {
       // Verify inventory exists, create if missing (IMS best practice)
       let inventory = await Inventory.findByProductId(product_id);
       if (!inventory) {
-        logger.warn(`Inventory not found for product ${product_id}, creating with 0 stock`);
-        
+        logger.warn(
+          `Inventory not found for product ${product_id}, creating with 0 stock`
+        );
+
         // Auto-create inventory with 0 stock
         inventory = await Inventory.create({
           product_id,
@@ -172,7 +174,7 @@ class InventoryController {
           reorder_level: 100, // Default
           max_stock_level: 1000, // Default
         });
-        
+
         logger.info(`Auto-created inventory for product ${product_id}`);
       }
 

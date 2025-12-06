@@ -35,7 +35,7 @@ class InventoryServiceClient {
         `Failed to create inventory for product ${productData.id}:`,
         error.message
       );
-      
+
       // Return null to indicate inventory creation failed but don't throw
       return null;
     }
