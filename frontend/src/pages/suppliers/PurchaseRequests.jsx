@@ -230,6 +230,27 @@ const PurchaseRequests = () => {
     }
   };
 
+  const handlePreparing = async (request) => {
+    try {
+      await fetch(
+        `http://localhost:3004/api/purchase-orders/${request.id}/preparing`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("asgardeo_token")}`,
+          },
+        }
+      );
+
+      toast.success("Order marked as preparing!");
+      fetchRequests();
+    } catch (error) {
+      console.error("Error updating order status:", error);
+      toast.error("Failed to update order status");
+    }
+  };
+
   const submitShipment = async (e) => {
     e.preventDefault();
     try {
@@ -446,6 +467,16 @@ const PurchaseRequests = () => {
                       )}
                       {request.supplier_response === "approved" &&
                         request.status === "confirmed" && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handlePreparing(request)}
+                          >
+                            Mark Preparing
+                          </Button>
+                        )}
+                      {request.supplier_response === "approved" &&
+                        request.status === "preparing" && (
                           <Button
                             size="sm"
                             variant="secondary"

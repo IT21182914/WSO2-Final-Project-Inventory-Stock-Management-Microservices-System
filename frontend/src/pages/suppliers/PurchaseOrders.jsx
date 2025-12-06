@@ -391,15 +391,6 @@ const PurchaseOrders = () => {
           <Button size="sm" variant="outline" onClick={() => handleEdit(row)}>
             <FiEdit className="mr-1" /> Edit
           </Button>
-          {row.status === "confirmed" && (
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={() => handleStatusUpdate(row.id, "preparing")}
-            >
-              Mark Preparing
-            </Button>
-          )}
           {row.status === "shipped" && (
             <Button
               size="sm"

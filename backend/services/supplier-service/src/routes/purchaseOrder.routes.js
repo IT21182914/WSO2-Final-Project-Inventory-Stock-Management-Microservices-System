@@ -35,6 +35,13 @@ router.patch(
   purchaseOrderController.respondToPurchaseRequest
 );
 
+// NEW: Supplier marks order as preparing
+router.patch(
+  "/:id/preparing",
+  authenticateAsgardeo,
+  purchaseOrderController.markOrderPreparing
+);
+
 // NEW: Supplier updates shipment status
 router.patch(
   "/:id/ship",

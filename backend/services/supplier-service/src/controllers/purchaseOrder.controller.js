@@ -410,6 +410,31 @@ class PurchaseOrderController {
     }
   }
 
+  // New: Supplier marks order as preparing
+  async markOrderPreparing(req, res) {
+    try {
+      const { id } = req.params;
+
+      const updateData = { status: "preparing" };
+      const updatedPO = await PurchaseOrder.update(id, updateData);
+
+      logger.info(`Purchase order ${id} marked as preparing`);
+
+      res.json({
+        success: true,
+        message: "Order marked as preparing",
+        data: updatedPO,
+      });
+    } catch (error) {
+      logger.error("Mark order preparing error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Error marking order as preparing",
+        error: error.message,
+      });
+    }
+  }
+
   // New: Supplier updates shipment status
   async updateShipmentStatus(req, res) {
     try {
