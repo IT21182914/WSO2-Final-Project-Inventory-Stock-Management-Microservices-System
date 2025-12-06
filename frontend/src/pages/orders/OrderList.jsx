@@ -36,13 +36,50 @@ const OrderList = () => {
     }
   };
 
+  // Helper to translate technical errors to user-friendly messages
+  const getUserFriendlyError = (error) => {
+    const errorMsg = error.response?.data?.message || error.message || "";
+
+    // Map technical errors to user-friendly messages
+    if (errorMsg.includes("Invalid status transition")) {
+      return "This order has already been processed. Please refresh the page.";
+    }
+    if (errorMsg.includes("circular structure")) {
+      return "Order update failed. Please try again.";
+    }
+    if (errorMsg.includes("not found") || error.response?.status === 404) {
+      return "Order not found. It may have been deleted.";
+    }
+    if (
+      errorMsg.includes("Stock not available") ||
+      errorMsg.includes("insufficient")
+    ) {
+      return "Cannot ship order: Not enough inventory available.";
+    }
+    if (errorMsg.includes("already shipped")) {
+      return "This order has already been shipped.";
+    }
+    if (errorMsg.includes("cancelled")) {
+      return "Cannot update a cancelled order.";
+    }
+    if (error.response?.status === 400) {
+      return "Unable to update order status. Please check the order details.";
+    }
+
+    return "Failed to update order. Please try again.";
+  };
+
   const handleStatusChange = async (orderId, newStatus) => {
     try {
       await orderService.updateOrderStatus(orderId, newStatus);
+      toast.success(
+        `Order ${newStatus === "shipped" ? "shipped" : "updated"} successfully!`
+      );
       fetchOrders();
     } catch (error) {
       console.error("Error updating order status:", error);
-      toast.error("Failed to update order status");
+      const friendlyMessage = getUserFriendlyError(error);
+      toast.error(friendlyMessage);
     }
   };
 
@@ -73,16 +110,39 @@ const OrderList = () => {
     {
       header: "Order ID",
       accessor: "id",
-      render: (row) => `#${row.id}`,
+      render: (row) => (
+        <span className="font-semibold text-dark-900">#{row.id}</span>
+      ),
     },
     {
-      header: "User ID",
-      accessor: "user_id",
+      header: "Products",
+      accessor: "items",
+      render: (row) => {
+        const items = row.items || [];
+        const productNames = items
+          .map((item) => item.product_name)
+          .filter(Boolean)
+          .join(", ");
+        return (
+          <div className="max-w-xs">
+            <span className="text-dark-800 text-sm">
+              {productNames || "No items"}
+            </span>
+            <div className="text-dark-500 text-xs mt-1">
+              {items.length} item{items.length !== 1 ? "s" : ""}
+            </div>
+          </div>
+        );
+      },
     },
     {
       header: "Total Amount",
       accessor: "total_amount",
-      render: (row) => `$${parseFloat(row.total_amount).toFixed(2)}`,
+      render: (row) => (
+        <span className="font-semibold text-primary">
+          ${parseFloat(row.total_amount).toFixed(2)}
+        </span>
+      ),
     },
     {
       header: "Status",
@@ -93,7 +153,7 @@ const OrderList = () => {
       header: "Shipping Address",
       accessor: "shipping_address",
       render: (row) => (
-        <span className="truncate max-w-xs">
+        <span className="truncate max-w-xs text-dark-600 text-sm">
           {row.shipping_address || "N/A"}
         </span>
       ),
@@ -101,7 +161,11 @@ const OrderList = () => {
     {
       header: "Order Date",
       accessor: "created_at",
-      render: (row) => new Date(row.created_at).toLocaleDateString(),
+      render: (row) => (
+        <span className="text-dark-700 text-sm">
+          {new Date(row.created_at).toLocaleDateString()}
+        </span>
+      ),
     },
     {
       header: "Actions",

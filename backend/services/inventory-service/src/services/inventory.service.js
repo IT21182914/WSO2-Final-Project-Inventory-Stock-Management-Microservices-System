@@ -180,14 +180,19 @@ class InventoryService {
       const result = await client.query(updateQuery, [quantity, productId]);
       const updatedInventory = result.rows[0];
 
+      if (!updatedInventory) {
+        throw new Error(`Inventory not found for product ${productId}`);
+      }
+
       // Log the deduction
       await StockMovement.create(
         {
           product_id: productId,
+          sku: updatedInventory.sku,
           quantity: -quantity,
-          movement_type: "sale",
+          movement_type: "out",
           reference_id: orderId.toString(),
-          notes: `Stock sold - Order #${orderId} completed`,
+          notes: `Stock sold - Order #${orderId} shipped`,
         },
         client
       );
