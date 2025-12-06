@@ -158,8 +158,8 @@ const ProductRatings = () => {
 
       {/* Rating Modal */}
       {ratingProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card className="max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="max-w-md w-full">
             <h2 className="text-xl font-semibold mb-4">
               Rate {ratingProduct.name}
             </h2>

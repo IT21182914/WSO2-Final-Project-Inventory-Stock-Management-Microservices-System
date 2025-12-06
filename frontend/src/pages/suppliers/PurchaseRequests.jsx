@@ -365,33 +365,77 @@ const PurchaseRequests = () => {
 
       {/* Response Modal */}
       {showResponseModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card className="max-w-lg w-full m-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <h2 className="text-2xl font-bold mb-4">
-                Respond to Purchase Request
-              </h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">
+                  Respond to Purchase Request
+                </h2>
+                <button
+                  onClick={() => setShowResponseModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
 
               {/* Request Summary */}
               {selectedRequest && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <h3 className="font-semibold text-blue-900 mb-2">
+                <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-4">
+                  <h3 className="font-semibold text-primary-900 mb-3">
                     Request Details
                   </h3>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-600">Requested Quantity:</span>
-                      <span className="ml-2 font-semibold">
-                        {selectedRequest.requested_quantity || "N/A"}
+                      <span className="text-gray-600">PO Number:</span>
+                      <span className="ml-2 font-semibold text-gray-900">
+                        {selectedRequest.po_number}
                       </span>
                     </div>
                     <div>
-                      <span className="text-gray-600">Total Amount:</span>
-                      <span className="ml-2 font-semibold">
-                        ${selectedRequest.total_amount || "0.00"}
+                      <span className="text-gray-600">Order Date:</span>
+                      <span className="ml-2 font-semibold text-gray-900">
+                        {new Date(
+                          selectedRequest.order_date
+                        ).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Requested Quantity:</span>
+                      <span className="ml-2 font-semibold text-gray-900">
+                        {selectedRequest.requested_quantity || 0}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Current Quote:</span>
+                      <span className="ml-2 font-semibold text-gray-900">
+                        {selectedRequest.total_amount > 0 ? (
+                          `$${parseFloat(selectedRequest.total_amount).toFixed(
+                            2
+                          )}`
+                        ) : (
+                          <span className="text-yellow-600">Pending</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-gray-600">Expected Delivery:</span>
+                      <span className="ml-2 font-semibold text-gray-900">
+                        {new Date(
+                          selectedRequest.expected_delivery_date
+                        ).toLocaleDateString()}
                       </span>
                     </div>
                   </div>
+                  {selectedRequest.notes && (
+                    <div className="mt-3 pt-3 border-t border-primary-200">
+                      <span className="text-gray-600 text-sm">Notes:</span>
+                      <p className="text-gray-900 text-sm mt-1">
+                        {selectedRequest.notes}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -420,32 +464,31 @@ const PurchaseRequests = () => {
                     <div>
                       <Input
                         label={`Approved Quantity * (Max: ${
-                          selectedRequest?.requested_quantity || "N/A"
-                        })`}
+                          selectedRequest?.requested_quantity || 0
+                        } units)`}
                         type="number"
                         min="1"
                         max={selectedRequest?.requested_quantity || 10000}
                         step="1"
                         value={responseData.approved_quantity}
                         onChange={(e) => {
-                          const value = parseInt(e.target.value);
-                          if (value < 1) {
-                            toast.error("Quantity must be at least 1");
-                            return;
-                          }
-                          if (
-                            selectedRequest?.requested_quantity &&
-                            value > selectedRequest.requested_quantity
-                          ) {
-                            toast.error(
-                              `Approved quantity cannot exceed requested quantity (${selectedRequest.requested_quantity})`
-                            );
-                            return;
-                          }
                           setResponseData({
                             ...responseData,
                             approved_quantity: e.target.value,
                           });
+                        }}
+                        onBlur={(e) => {
+                          const value = parseInt(e.target.value);
+                          if (value < 1) {
+                            toast.error("Quantity must be at least 1");
+                          } else if (
+                            selectedRequest?.requested_quantity &&
+                            value > selectedRequest.requested_quantity
+                          ) {
+                            toast.error(
+                              `Approved quantity cannot exceed requested quantity (${selectedRequest.requested_quantity} units)`
+                            );
+                          }
                         }}
                         required
                       />
@@ -550,10 +593,18 @@ const PurchaseRequests = () => {
 
       {/* Ship Modal */}
       {showShipModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card className="max-w-lg w-full m-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <h2 className="text-2xl font-bold mb-4">Update Shipment</h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">Update Shipment</h2>
+                <button
+                  onClick={() => setShowShipModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
               <form onSubmit={submitShipment} className="space-y-4">
                 <Input
                   label="Tracking Number"
