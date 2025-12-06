@@ -60,15 +60,33 @@ class InventoryService {
     try {
       await client.query("BEGIN");
 
+      logger.info(
+        `Reserving stock - Product ID: ${productId}, Quantity: ${quantity}, Order ID: ${orderId}`
+      );
+
       // Check availability
       const inventory = await Inventory.findByProductId(productId);
       if (!inventory) {
+        logger.error(`Product ${productId} not found in inventory`);
         throw new Error("Product not found in inventory");
       }
+
+      logger.info(`Current inventory state:`, {
+        product_id: inventory.product_id,
+        sku: inventory.sku,
+        quantity: inventory.quantity,
+        reserved_quantity: inventory.reserved_quantity,
+        available: inventory.quantity - (inventory.reserved_quantity || 0),
+      });
 
       const availableStock =
         inventory.quantity - (inventory.reserved_quantity || 0);
       if (availableStock < quantity) {
+        logger.error(`Insufficient stock for product ${productId}:`, {
+          available: availableStock,
+          requested: quantity,
+          shortage: quantity - availableStock,
+        });
         throw new Error(
           `Insufficient stock. Available: ${availableStock}, Required: ${quantity}`
         );
@@ -84,13 +102,21 @@ class InventoryService {
       `;
 
       const result = await client.query(updateQuery, [quantity, productId]);
+      const updatedInventory = result.rows[0];
 
-      // Log the reservation
+      logger.info(`Stock reservation updated:`, {
+        product_id: updatedInventory.product_id,
+        sku: updatedInventory.sku,
+        reserved_quantity: updatedInventory.reserved_quantity,
+      });
+
+      // Log the reservation with SKU
       await StockMovement.create(
         {
           product_id: productId,
+          sku: inventory.sku, // Add SKU from inventory
           quantity: -quantity,
-          movement_type: "reserved",
+          movement_type: "adjustment",
           reference_id: orderId.toString(),
           notes: `Stock reserved for order #${orderId}`,
         },
@@ -100,12 +126,18 @@ class InventoryService {
       await client.query("COMMIT");
 
       logger.info(
-        `Reserved ${quantity} units of product ${productId} for order ${orderId}`
+        `✅ Successfully reserved ${quantity} units of product ${productId} (SKU: ${inventory.sku}) for order ${orderId}`
       );
-      return result.rows[0];
+      return updatedInventory;
     } catch (error) {
       await client.query("ROLLBACK");
-      logger.error("Error reserving stock:", error);
+      logger.error("❌ Error reserving stock:", {
+        message: error.message,
+        productId,
+        quantity,
+        orderId,
+        stack: error.stack,
+      });
       throw error;
     } finally {
       client.release();
@@ -121,6 +153,17 @@ class InventoryService {
     try {
       await client.query("BEGIN");
 
+      logger.info(
+        `Releasing reserved stock - Product ID: ${productId}, Quantity: ${quantity}, Order ID: ${orderId}`
+      );
+
+      // Get inventory to retrieve SKU
+      const inventory = await Inventory.findByProductId(productId);
+      if (!inventory) {
+        logger.error(`Product ${productId} not found in inventory`);
+        throw new Error("Product not found in inventory");
+      }
+
       const updateQuery = `
         UPDATE inventory 
         SET reserved_quantity = GREATEST(COALESCE(reserved_quantity, 0) - $1, 0),
@@ -130,13 +173,21 @@ class InventoryService {
       `;
 
       const result = await client.query(updateQuery, [quantity, productId]);
+      const updatedInventory = result.rows[0];
 
-      // Log the release
+      logger.info(`Reserved stock released:`, {
+        product_id: updatedInventory.product_id,
+        sku: updatedInventory.sku,
+        reserved_quantity: updatedInventory.reserved_quantity,
+      });
+
+      // Log the release with SKU
       await StockMovement.create(
         {
           product_id: productId,
+          sku: inventory.sku, // Add SKU from inventory
           quantity: quantity,
-          movement_type: "released",
+          movement_type: "adjustment",
           reference_id: orderId.toString(),
           notes: `Stock released from cancelled order #${orderId}`,
         },
@@ -146,12 +197,18 @@ class InventoryService {
       await client.query("COMMIT");
 
       logger.info(
-        `Released ${quantity} units of product ${productId} from order ${orderId}`
+        `✅ Successfully released ${quantity} units of product ${productId} (SKU: ${inventory.sku}) from order ${orderId}`
       );
-      return result.rows[0];
+      return updatedInventory;
     } catch (error) {
       await client.query("ROLLBACK");
-      logger.error("Error releasing reserved stock:", error);
+      logger.error("❌ Error releasing reserved stock:", {
+        message: error.message,
+        productId,
+        quantity,
+        orderId,
+        stack: error.stack,
+      });
       throw error;
     } finally {
       client.release();

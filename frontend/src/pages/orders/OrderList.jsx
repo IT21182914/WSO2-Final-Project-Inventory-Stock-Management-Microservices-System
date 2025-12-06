@@ -115,21 +115,29 @@ const OrderList = () => {
       ),
     },
     {
-      header: "Products",
+      header: "Products & Quantities",
       accessor: "items",
       render: (row) => {
         const items = row.items || [];
-        const productNames = items
-          .map((item) => item.product_name)
-          .filter(Boolean)
-          .join(", ");
+        if (items.length === 0)
+          return <span className="text-dark-500">No items</span>;
+
         return (
-          <div className="max-w-xs">
-            <span className="text-dark-800 text-sm">
-              {productNames || "No items"}
-            </span>
-            <div className="text-dark-500 text-xs mt-1">
-              {items.length} item{items.length !== 1 ? "s" : ""}
+          <div className="max-w-md">
+            {items.map((item, idx) => (
+              <div
+                key={idx}
+                className="text-sm mb-1 flex items-center justify-between"
+              >
+                <span className="text-dark-800">{item.product_name}</span>
+                <span className="ml-3 px-2 py-0.5 bg-primary/10 text-primary rounded-md font-semibold text-xs">
+                  {item.quantity}x
+                </span>
+              </div>
+            ))}
+            <div className="text-dark-500 text-xs mt-2 pt-1 border-t border-dark-200">
+              Total:{" "}
+              {items.reduce((sum, item) => sum + (item.quantity || 0), 0)} units
             </div>
           </div>
         );

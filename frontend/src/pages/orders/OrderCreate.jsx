@@ -1,27 +1,121 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import Card from "../../components/common/Card";
 import Button from "../../components/common/Button";
 import Input from "../../components/common/Input";
 import { orderService } from "../../services/orderService";
-import { FiArrowLeft, FiPlus, FiTrash2 } from "react-icons/fi";
+import { productService } from "../../services/productService";
+import {
+  FiArrowLeft,
+  FiPlus,
+  FiTrash2,
+  FiZap,
+  FiRefreshCw,
+} from "react-icons/fi";
+
+// Random address generator
+const generateRandomAddress = () => {
+  const streets = [
+    "Main St",
+    "Oak Ave",
+    "Maple Dr",
+    "Pine Rd",
+    "Cedar Ln",
+    "Elm Way",
+    "Park Blvd",
+    "Lake St",
+    "Hill Rd",
+    "Valley Dr",
+  ];
+  const cities = [
+    "New York",
+    "Boston",
+    "Chicago",
+    "Austin",
+    "Seattle",
+    "Miami",
+    "Denver",
+    "Portland",
+    "Phoenix",
+    "Atlanta",
+  ];
+  const number = Math.floor(Math.random() * 9999) + 1;
+  const street = streets[Math.floor(Math.random() * streets.length)];
+  const city = cities[Math.floor(Math.random() * cities.length)];
+  return `${number} ${street}, ${city}`;
+};
 
 const OrderCreate = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState([]);
   const [formData, setFormData] = useState({
-    customer_id: "",
+    customer_id: "5",
     total_amount: "",
     shipping_address: "",
     payment_method: "credit_card",
-    payment_status: "pending",
+    payment_status: "paid",
     notes: "",
   });
 
   const [orderItems, setOrderItems] = useState([
-    { product_id: "", sku: "", product_name: "", quantity: "", unit_price: "" },
+    {
+      product_id: "",
+      sku: "",
+      product_name: "",
+      quantity: "1",
+      unit_price: "",
+    },
   ]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      const response = await productService.getAllProducts();
+      // Filter only active products that are available for sale
+      const activeProducts = (response.data || []).filter(
+        (p) => p.lifecycle_state === "active" && (p.unit_price || 0) > 0
+      );
+      setProducts(activeProducts);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      toast.error("Failed to load products");
+    }
+  };
+
+  const generateRandomOrder = () => {
+    if (products.length === 0) {
+      toast.error("No products available. Please add products first.");
+      return;
+    }
+
+    const randomProduct = products[Math.floor(Math.random() * products.length)];
+    const quantity = Math.floor(Math.random() * 5) + 1;
+
+    if (randomProduct) {
+      setOrderItems([
+        {
+          product_id: randomProduct.id.toString(),
+          sku: randomProduct.sku || "",
+          product_name: randomProduct.name || "",
+          quantity: quantity.toString(),
+          unit_price: (randomProduct.unit_price || 0).toString(),
+        },
+      ]);
+
+      setFormData((prev) => ({
+        ...prev,
+        shipping_address: generateRandomAddress(),
+        total_amount: ((randomProduct.unit_price || 0) * quantity).toFixed(2),
+      }));
+
+      toast.success("Random order generated!");
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -34,6 +128,19 @@ const OrderCreate = () => {
   const handleItemChange = (index, field, value) => {
     const newItems = [...orderItems];
     newItems[index][field] = value;
+
+    // Auto-fill product details when product is selected
+    if (field === "product_id" && value) {
+      const selectedProduct = products.find((p) => p.id === parseInt(value));
+      if (selectedProduct) {
+        newItems[index].sku = selectedProduct.sku || "";
+        newItems[index].product_name = selectedProduct.name || "";
+        newItems[index].unit_price = (
+          selectedProduct.unit_price || 0
+        ).toString();
+      }
+    }
+
     setOrderItems(newItems);
 
     // Auto-calculate total amount
@@ -75,12 +182,7 @@ const OrderCreate = () => {
     }
 
     const hasValidItems = orderItems.every(
-      (item) =>
-        item.product_id &&
-        item.sku &&
-        item.product_name &&
-        item.quantity &&
-        item.unit_price
+      (item) => item.product_id && item.quantity && item.unit_price
     );
     if (!hasValidItems) {
       toast("Please complete all order item details", { icon: "⚠️" });
@@ -107,7 +209,37 @@ const OrderCreate = () => {
       navigate("/orders");
     } catch (error) {
       console.error("Error creating order:", error);
-      toast.error(error.response?.data?.message || "Failed to create order");
+
+      // Enhanced error handling for stock issues
+      const errorMessage =
+        error.response?.data?.message || "Failed to create order";
+
+      if (
+        errorMessage.includes("Stock not available") ||
+        errorMessage.includes("Insufficient stock")
+      ) {
+        // Parse stock shortage details if available
+        try {
+          const match = errorMessage.match(/\[{.*}\]/);
+          if (match) {
+            const stockInfo = JSON.parse(match[0]);
+            const details = stockInfo
+              .map(
+                (item) =>
+                  `${item.sku || item.product_id}: needs ${
+                    item.requested
+                  }, has ${item.currentStock} (shortage: ${item.shortage})`
+              )
+              .join(", ");
+            toast.error(`Stock not available - ${details}`, { duration: 5000 });
+            return;
+          }
+        } catch (e) {
+          // Fallback to simple message
+        }
+      }
+
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -115,11 +247,18 @@ const OrderCreate = () => {
 
   return (
     <div>
-      <div className="flex items-center gap-4 mb-8">
-        <Button variant="outline" onClick={() => navigate("/orders")}>
-          <FiArrowLeft className="mr-2" /> Back
-        </Button>
-        <h1 className="text-3xl font-bold text-dark-900">Create New Order</h1>
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <Button variant="outline" onClick={() => navigate("/orders")}>
+            <FiArrowLeft className="mr-2" /> Back
+          </Button>
+          <h1 className="text-3xl font-bold text-dark-900">Create New Order</h1>
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="primary" onClick={generateRandomOrder}>
+            <FiZap className="mr-2" /> Quick Random Order
+          </Button>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -151,14 +290,32 @@ const OrderCreate = () => {
                 placeholder="Auto-calculated"
               />
               <div className="md:col-span-2">
-                <Input
-                  label="Shipping Address *"
-                  name="shipping_address"
-                  value={formData.shipping_address}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="Enter shipping address"
-                />
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Input
+                      label="Shipping Address *"
+                      name="shipping_address"
+                      value={formData.shipping_address}
+                      onChange={handleInputChange}
+                      required
+                      placeholder="Enter shipping address"
+                    />
+                  </div>
+                  <div className="pt-7">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          shipping_address: generateRandomAddress(),
+                        }))
+                      }
+                    >
+                      <FiRefreshCw className="mr-2" /> Random Address
+                    </Button>
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-dark-700 mb-2">
@@ -222,37 +379,41 @@ const OrderCreate = () => {
               {orderItems.map((item, index) => (
                 <div
                   key={index}
-                  className="grid grid-cols-1 md:grid-cols-6 gap-4 p-4 bg-gray-50 rounded-lg"
+                  className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg relative"
                 >
+                  <div>
+                    <label className="block text-sm font-medium text-dark-700 mb-2">
+                      Product *
+                    </label>
+                    <select
+                      className="w-full px-3 py-2 border border-dark-300 rounded-lg"
+                      value={item.product_id}
+                      onChange={(e) =>
+                        handleItemChange(index, "product_id", e.target.value)
+                      }
+                      required
+                    >
+                      <option value="">Select Product</option>
+                      {products.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name} (${product.price})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <Input
-                    label="Product ID *"
-                    type="number"
-                    value={item.product_id}
-                    onChange={(e) =>
-                      handleItemChange(index, "product_id", e.target.value)
-                    }
-                    required
-                    placeholder="Product ID"
-                  />
-                  <Input
-                    label="SKU *"
+                    label="SKU"
                     type="text"
                     value={item.sku}
-                    onChange={(e) =>
-                      handleItemChange(index, "sku", e.target.value)
-                    }
-                    required
-                    placeholder="SKU"
+                    disabled
+                    placeholder="Auto-filled"
                   />
                   <Input
-                    label="Product Name *"
+                    label="Product Name"
                     type="text"
                     value={item.product_name}
-                    onChange={(e) =>
-                      handleItemChange(index, "product_name", e.target.value)
-                    }
-                    required
-                    placeholder="Product Name"
+                    disabled
+                    placeholder="Auto-filled"
                   />
                   <Input
                     label="Quantity *"
@@ -262,38 +423,23 @@ const OrderCreate = () => {
                       handleItemChange(index, "quantity", e.target.value)
                     }
                     required
-                    placeholder="Quantity"
+                    min="1"
+                    placeholder="Qty"
                   />
-                  <Input
-                    label="Unit Price *"
-                    type="number"
-                    step="0.01"
-                    value={item.unit_price}
-                    onChange={(e) =>
-                      handleItemChange(index, "unit_price", e.target.value)
-                    }
-                    required
-                    placeholder="Price"
-                  />
-                  <div className="flex items-end">
-                    <div className="w-full">
-                      <label className="block text-sm font-medium text-dark-700 mb-2">
-                        Subtotal
-                      </label>
-                      <div className="px-3 py-2 bg-white border border-dark-300 rounded-lg font-semibold">
-                        $
-                        {(
-                          (parseFloat(item.quantity) || 0) *
-                          (parseFloat(item.unit_price) || 0)
-                        ).toFixed(2)}
-                      </div>
-                    </div>
+                  <div className="flex items-end gap-2">
+                    <Input
+                      label="Unit Price"
+                      type="number"
+                      step="0.01"
+                      value={item.unit_price}
+                      disabled
+                      placeholder="Auto-filled"
+                    />
                     {orderItems.length > 1 && (
                       <Button
                         type="button"
                         variant="danger"
                         size="sm"
-                        className="ml-2"
                         onClick={() => removeOrderItem(index)}
                       >
                         <FiTrash2 />
