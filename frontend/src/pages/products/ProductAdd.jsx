@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Shuffle, Zap } from "lucide-react";
 import Card from "../../components/common/Card";
 import Button from "../../components/common/Button";
 import Input from "../../components/common/Input";
@@ -74,6 +74,93 @@ const ProductAdd = () => {
     });
   };
 
+  const generateRandomProduct = () => {
+    const productNames = [
+      "Premium Cotton T-Shirt",
+      "Wireless Bluetooth Headphones",
+      "Stainless Steel Water Bottle",
+      "Leather Laptop Bag",
+      "Organic Green Tea",
+      "Smart Fitness Watch",
+      "Portable Phone Charger",
+      "Yoga Exercise Mat",
+      "Ceramic Coffee Mug Set",
+      "LED Desk Lamp",
+      "Memory Foam Pillow",
+      "Bamboo Cutting Board",
+      "Canvas Tote Bag",
+      "Noise Cancelling Earbuds",
+      "Aromatherapy Diffuser",
+    ];
+
+    const descriptions = [
+      "High-quality product with premium materials and excellent durability",
+      "Top-rated item designed for everyday use and long-lasting performance",
+      "Professional grade product with innovative features and modern design",
+      "Eco-friendly option made with sustainable materials",
+      "Best-selling item trusted by thousands of satisfied customers",
+      "Versatile product suitable for various applications and users",
+      "Limited edition item with exclusive features and premium quality",
+      "Award-winning design combining functionality with style",
+    ];
+
+    const sizes = ["Small", "Medium", "Large", "X-Large", "One Size"];
+    const colors = [
+      "Black",
+      "White",
+      "Blue",
+      "Red",
+      "Green",
+      "Gray",
+      "Navy",
+      "Beige",
+    ];
+
+    const randomName =
+      productNames[Math.floor(Math.random() * productNames.length)];
+    const randomSKU = `SKU-${Math.floor(10000 + Math.random() * 90000)}`;
+    const randomPrice = (Math.random() * (199.99 - 9.99) + 9.99).toFixed(2);
+    const randomDescription =
+      descriptions[Math.floor(Math.random() * descriptions.length)];
+    const randomSize = sizes[Math.floor(Math.random() * sizes.length)];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    const randomCategory =
+      categories.length > 0
+        ? categories[Math.floor(Math.random() * categories.length)].id
+        : "";
+
+    setFormData({
+      name: randomName,
+      description: randomDescription,
+      sku: randomSKU,
+      unit_price: randomPrice,
+      category_id: randomCategory,
+      size: randomSize,
+      color: randomColor,
+    });
+
+    toast.success("Random product generated!");
+  };
+
+  const quickFillBasic = () => {
+    const randomSKU = `SKU-${Math.floor(10000 + Math.random() * 90000)}`;
+    const randomCategory =
+      categories.length > 0
+        ? categories[Math.floor(Math.random() * categories.length)].id
+        : "";
+
+    setFormData({
+      ...formData,
+      sku: randomSKU,
+      unit_price: "29.99",
+      category_id: randomCategory,
+      size: "Medium",
+      color: "Black",
+    });
+
+    toast.success("Basic fields filled!");
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -130,24 +217,49 @@ const ProductAdd = () => {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center mb-8">
-        <Button
-          variant="ghost"
-          onClick={() => navigate("/products")}
-          className="mr-4"
-        >
-          <ArrowLeft size={20} />
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold text-dark-900">
-            {isEditMode ? "Edit Product" : "Add New Product"}
-          </h1>
-          <p className="text-dark-600 mt-2">
-            {isEditMode
-              ? "Update product information"
-              : "Create a new product in your catalog"}
-          </p>
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center">
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/products")}
+            className="mr-4"
+          >
+            <ArrowLeft size={20} />
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold text-dark-900">
+              {isEditMode ? "Edit Product" : "Add New Product"}
+            </h1>
+            <p className="text-dark-600 mt-2">
+              {isEditMode
+                ? "Update product information"
+                : "Create a new product in your catalog"}
+            </p>
+          </div>
         </div>
+
+        {!isEditMode && (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={quickFillBasic}
+              className="flex items-center gap-2"
+            >
+              <Zap size={18} />
+              Quick Fill
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={generateRandomProduct}
+              className="flex items-center gap-2"
+            >
+              <Shuffle size={18} />
+              Generate Random
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Form */}

@@ -151,6 +151,7 @@ services:
       - ASGARDEO_ISSUER=${ASGARDEO_ISSUER}
       - ASGARDEO_AUDIENCE=${ASGARDEO_AUDIENCE}
       - ASGARDEO_BASE_URL=${ASGARDEO_BASE_URL}
+      - INVENTORY_SERVICE_URL=http://inventory-service:3003/api
     ports:
       - "3002:3002"
     depends_on:
