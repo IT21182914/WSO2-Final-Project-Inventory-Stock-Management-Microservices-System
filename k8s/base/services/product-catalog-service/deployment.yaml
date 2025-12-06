@@ -39,7 +39,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: product-catalog-service
-        image: ghcr.io/it21182914/product-catalog-service:5250264
+        image: ghcr.io/it21182914/product-catalog-service:f872e15
         imagePullPolicy: Always
         ports:
         - name: http
