@@ -263,7 +263,7 @@ const PurchaseOrders = () => {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${localStorage.getItem("asgardeo_token")}`,
           },
           body: JSON.stringify({
             notes: "Shipment received by warehouse",

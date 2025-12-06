@@ -14,7 +14,15 @@ class SupplierRatingController {
         comments,
       } = req.body;
 
-      const rated_by = req.user?.id || req.user?.userId;
+      // Get user ID from Asgardeo token (sub claim)
+      const rated_by = req.user?.sub || req.user?.id || req.user?.userId;
+
+      if (!rated_by) {
+        return res.status(401).json({
+          success: false,
+          message: "User authentication required",
+        });
+      }
 
       // Verify PO exists and is completed
       const poCheck = await db.query(
