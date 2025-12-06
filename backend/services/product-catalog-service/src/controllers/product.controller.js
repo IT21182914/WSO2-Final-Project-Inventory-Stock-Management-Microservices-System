@@ -1,4 +1,5 @@
 const Product = require("../models/product.model");
+const InventoryServiceClient = require("../services/inventoryService.client");
 const logger = require("../config/logger");
 
 class ProductController {
@@ -29,6 +30,9 @@ class ProductController {
       });
 
       logger.info(`Product created: ${product.sku} - ${product.name}`);
+
+      // Auto-create inventory record with 0 stock (IMS best practice)
+      await InventoryServiceClient.createInventoryForProduct(product);
 
       res.status(201).json({
         success: true,

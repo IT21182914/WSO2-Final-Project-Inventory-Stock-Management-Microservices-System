@@ -158,10 +158,22 @@ class InventoryController {
       const { product_id, sku, movement_type, quantity, notes, performed_by } =
         req.body;
 
-      // Verify inventory exists
-      const inventory = await Inventory.findByProductId(product_id);
+      // Verify inventory exists, create if missing (IMS best practice)
+      let inventory = await Inventory.findByProductId(product_id);
       if (!inventory) {
-        throw new Error("Inventory not found for this product");
+        logger.warn(`Inventory not found for product ${product_id}, creating with 0 stock`);
+        
+        // Auto-create inventory with 0 stock
+        inventory = await Inventory.create({
+          product_id,
+          sku,
+          quantity: 0,
+          warehouse_location: "Warehouse-A", // Default
+          reorder_level: 100, // Default
+          max_stock_level: 1000, // Default
+        });
+        
+        logger.info(`Auto-created inventory for product ${product_id}`);
       }
 
       // Calculate quantity change
