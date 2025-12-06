@@ -16,8 +16,8 @@ class Product {
     } = data;
 
     const query = `
-      INSERT INTO products (sku, name, description, category_id, size, color, unit_price, attributes, supplier_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO products (sku, name, description, category_id, size, color, unit_price, attributes, supplier_id, is_active, lifecycle_state)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, 'draft')
       RETURNING *
     `;
 

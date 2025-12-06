@@ -75,7 +75,7 @@ class InventoryController {
 
       const inventory = await Inventory.findAll(filters);
 
-      // Enrich inventory with product names
+      // Enrich inventory with product names and filter by lifecycle state
       const enrichedInventory = await Promise.all(
         inventory.map(async (item) => {
           try {
@@ -85,6 +85,8 @@ class InventoryController {
             return {
               ...item,
               product_name: product.name || `Product ${item.product_id}`,
+              lifecycle_state: product.lifecycle_state,
+              is_active: product.is_active,
             };
           } catch (error) {
             // If product fetch fails, continue with fallback name
@@ -95,15 +97,22 @@ class InventoryController {
             return {
               ...item,
               product_name: `Product ${item.product_id}`,
+              lifecycle_state: null,
+              is_active: false,
             };
           }
         })
       );
 
+      // Filter: Only show active products (exclude draft, pending, approved, discontinued, archived)
+      const visibleInventory = enrichedInventory.filter(
+        (item) => item.lifecycle_state === "active"
+      );
+
       res.json({
         success: true,
-        count: enrichedInventory.length,
-        data: enrichedInventory,
+        count: visibleInventory.length,
+        data: visibleInventory,
       });
     } catch (error) {
       logger.error("Get all inventory error:", error);
