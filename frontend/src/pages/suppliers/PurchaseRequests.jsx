@@ -312,8 +312,14 @@ const PurchaseRequests = () => {
                           ).toLocaleDateString()}
                         </p>
                         <p>
-                          <span className="font-medium">Amount:</span> $
-                          {request.total_amount}
+                          <span className="font-medium">Amount:</span>{" "}
+                          {request.total_amount > 0 ? (
+                            `$${request.total_amount}`
+                          ) : (
+                            <span className="text-yellow-600 font-medium">
+                              Pending Quote
+                            </span>
+                          )}
                         </p>
                         {request.tracking_number && (
                           <p>

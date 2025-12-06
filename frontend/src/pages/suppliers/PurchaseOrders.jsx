@@ -122,31 +122,8 @@ const PurchaseOrders = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
 
-    // Validate requested quantity against minimum order quantity
-    if (name === "requested_quantity") {
-      const qty = parseInt(value);
-      if (qty < 1) {
-        toast.error("Quantity must be at least 1");
-        return;
-      }
-      if (qty > 10000) {
-        toast.error("Quantity cannot exceed 10,000 units per order");
-        return;
-      }
-
-      // Check minimum order quantity if product is selected
-      if (formData.product_id) {
-        const productSupplier = availableProducts.find(
-          (ps) => ps.product_id === parseInt(formData.product_id)
-        );
-        if (productSupplier && qty < productSupplier.minimum_order_quantity) {
-          toast.error(
-            `Minimum order quantity for this product is ${productSupplier.minimum_order_quantity} units`
-          );
-          return;
-        }
-      }
-    }
+    // For quantity, just update the value without validation during typing
+    // Validation will happen on blur or submit
 
     // Validate expected delivery date is after order date
     if (name === "expected_delivery_date") {
@@ -167,6 +144,27 @@ const PurchaseOrders = () => {
     }
 
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const validateQuantity = () => {
+    const qty = parseInt(formData.requested_quantity);
+
+    if (!qty || qty < 1) {
+      return;
+    }
+
+    if (formData.product_id) {
+      const productSupplier = availableProducts.find(
+        (ps) => ps.product_id === parseInt(formData.product_id)
+      );
+
+      if (productSupplier && qty < productSupplier.minimum_order_quantity) {
+        toast.error(
+          `Minimum order quantity for this product is ${productSupplier.minimum_order_quantity} units`,
+          { duration: 4000 }
+        );
+      }
+    }
   };
 
   const resetForm = () => {
@@ -196,6 +194,24 @@ const PurchaseOrders = () => {
       parseInt(formData.requested_quantity) < 1
     ) {
       toast.error("Please enter a valid quantity");
+      return;
+    }
+
+    // Validate minimum order quantity
+    const qty = parseInt(formData.requested_quantity);
+    const productSupplier = availableProducts.find(
+      (ps) => ps.product_id === parseInt(formData.product_id)
+    );
+
+    if (productSupplier && qty < productSupplier.minimum_order_quantity) {
+      toast.error(
+        `Minimum order quantity for this product is ${productSupplier.minimum_order_quantity} units`
+      );
+      return;
+    }
+
+    if (qty > 10000) {
+      toast.error("Quantity cannot exceed 10,000 units per order");
       return;
     }
 
@@ -609,6 +625,7 @@ const PurchaseOrders = () => {
                     step="1"
                     value={formData.requested_quantity}
                     onChange={handleInputChange}
+                    onBlur={validateQuantity}
                     required
                     placeholder="e.g., 100"
                   />
