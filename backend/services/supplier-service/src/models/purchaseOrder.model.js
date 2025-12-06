@@ -12,6 +12,7 @@ class PurchaseOrder {
       expected_delivery_date,
       status = "draft",
       notes,
+      sku, // Accept SKU from frontend
     } = poData;
 
     // Generate unique PO number
@@ -21,8 +22,8 @@ class PurchaseOrder {
       .toUpperCase()}`;
 
     const query = `
-      INSERT INTO purchase_orders (po_number, supplier_id, product_id, requested_quantity, total_amount, order_date, expected_delivery_date, status, notes, supplier_response)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
+      INSERT INTO purchase_orders (po_number, supplier_id, product_id, requested_quantity, total_amount, order_date, expected_delivery_date, status, notes, supplier_response, sku)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10)
       RETURNING *
     `;
 
@@ -36,12 +37,15 @@ class PurchaseOrder {
       expected_delivery_date,
       status,
       notes,
+      sku || null, // Store SKU if provided
     ];
 
     try {
       const result = await db.query(query, values);
       logger.info(
-        `Purchase order created: ${poNumber} for supplier ${supplier_id}`
+        `Purchase order created: ${poNumber} for supplier ${supplier_id}, product ${product_id}, SKU: ${
+          sku || "N/A"
+        }`
       );
       return result.rows[0];
     } catch (error) {

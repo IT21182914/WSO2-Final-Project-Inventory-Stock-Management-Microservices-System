@@ -216,12 +216,36 @@ const PurchaseOrders = () => {
     }
 
     try {
+      // Fetch product details to get SKU for inventory tracking
+      let productSku = null;
+      try {
+        const productResponse = await fetch(
+          `http://localhost:3002/api/products/${formData.product_id}`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("asgardeo_token")}`,
+            },
+          }
+        );
+        const productData = await productResponse.json();
+        if (productData.success && productData.data) {
+          productSku = productData.data.sku;
+          console.log("✅ Fetched product SKU:", productSku);
+        }
+      } catch (error) {
+        console.warn(
+          "⚠️ Failed to fetch product SKU, will use fallback:",
+          error
+        );
+      }
+
       const poData = {
         ...formData,
         supplier_id: parseInt(formData.supplier_id),
         product_id: parseInt(formData.product_id),
         requested_quantity: parseInt(formData.requested_quantity),
         total_amount: 0, // Will be set by supplier when they quote
+        sku: productSku, // Include SKU for inventory tracking
       };
 
       if (editingPO) {

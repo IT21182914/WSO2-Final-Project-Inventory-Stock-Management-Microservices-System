@@ -160,8 +160,9 @@ const InventoryDashboard = () => {
       ),
     },
     {
-      header: "Product ID",
-      accessor: "product_id",
+      header: "Product Name",
+      accessor: "product_name",
+      cell: (row) => <span className="text-dark-800">{row.product_name}</span>,
     },
     {
       header: "Location",

@@ -480,7 +480,7 @@ class PurchaseOrderController {
         });
       }
 
-      // Get purchase order items
+      // Check if PO has items in purchase_order_items table
       const db = require("../config/database");
       const itemsResult = await db.query(
         "SELECT product_id, sku, quantity FROM purchase_order_items WHERE po_id = $1",
@@ -495,41 +495,108 @@ class PurchaseOrderController {
 
       const updatedPO = await PurchaseOrder.update(id, updateData);
 
-      // Update inventory for each product
+      // Update inventory
       let inventoryUpdatesSuccessful = true;
       const inventoryErrors = [];
+      const itemsToProcess = [];
 
-      for (const item of itemsResult.rows) {
+      // Check if we have items in purchase_order_items table
+      if (itemsResult.rows.length > 0) {
+        // Use items from purchase_order_items table
+        itemsToProcess.push(...itemsResult.rows);
+        logger.info(
+          `Processing ${itemsResult.rows.length} items from purchase_order_items table`
+        );
+      } else if (purchaseOrder.product_id && purchaseOrder.requested_quantity) {
+        // Fallback: Use single product from purchase_orders table
+        logger.info(
+          "No items in purchase_order_items, using purchase_orders fields"
+        );
+
+        // Fetch product details to get SKU
+        let productSku = purchaseOrder.sku; // Use SKU from PO if available
+
+        if (!productSku) {
+          try {
+            const productResponse = await axios.get(
+              `${
+                process.env.PRODUCT_SERVICE_URL ||
+                "http://product-catalog-service:3002"
+              }/api/products/${purchaseOrder.product_id}`
+            );
+            productSku =
+              productResponse.data.data?.sku ||
+              `SKU-${purchaseOrder.product_id}`;
+            logger.info(`Fetched SKU from product catalog: ${productSku}`);
+          } catch (error) {
+            logger.warn(
+              `Failed to fetch product SKU, using fallback: SKU-${purchaseOrder.product_id}`
+            );
+            productSku = `SKU-${purchaseOrder.product_id}`;
+          }
+        }
+
+        itemsToProcess.push({
+          product_id: purchaseOrder.product_id,
+          sku: productSku,
+          quantity:
+            purchaseOrder.approved_quantity || purchaseOrder.requested_quantity,
+        });
+      } else {
+        logger.error("No items found to process for purchase order:", id);
+        return res.status(400).json({
+          success: false,
+          message: "No items found in purchase order to receive",
+        });
+      }
+
+      // Update inventory for each item
+      for (const item of itemsToProcess) {
         try {
+          logger.info(
+            `Updating inventory for product ${item.product_id}, SKU: ${item.sku}, quantity: ${item.quantity}`
+          );
+
           await axios.post(`${INVENTORY_SERVICE_URL}/api/inventory/adjust`, {
             product_id: item.product_id,
             sku: item.sku,
             quantity: item.quantity,
             movement_type: "in",
             notes: `Received from PO ${purchaseOrder.po_number}`,
+            performed_by: req.user?.id || 1,
           });
+
           logger.info(
-            `Inventory updated for product ${item.product_id}: +${item.quantity} units`
+            `✅ Inventory updated successfully for product ${item.product_id}: +${item.quantity} units`
           );
         } catch (inventoryError) {
           inventoryUpdatesSuccessful = false;
           inventoryErrors.push({
             product_id: item.product_id,
-            error: inventoryError.message,
+            sku: item.sku,
+            error:
+              inventoryError.response?.data?.message || inventoryError.message,
           });
           logger.error(
-            `Failed to update inventory for product ${item.product_id}:`,
-            inventoryError
+            `❌ Failed to update inventory for product ${item.product_id}:`,
+            inventoryError.response?.data || inventoryError.message
           );
         }
       }
 
-      logger.info(`Purchase order ${id} marked as received`);
+      logger.info(
+        `Purchase order ${id} marked as received. Inventory updates: ${
+          inventoryUpdatesSuccessful ? "successful" : "had errors"
+        }`
+      );
 
       res.json({
         success: true,
-        message: "Purchase order receipt confirmed",
+        message: inventoryUpdatesSuccessful
+          ? "Purchase order receipt confirmed and inventory updated"
+          : "Purchase order received but some inventory updates failed",
         data: updatedPO,
+        items_processed: itemsToProcess.length,
         inventory_updates: {
           successful: inventoryUpdatesSuccessful,
           errors: inventoryErrors.length > 0 ? inventoryErrors : undefined,

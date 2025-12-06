@@ -75,10 +75,35 @@ class InventoryController {
 
       const inventory = await Inventory.findAll(filters);
 
+      // Enrich inventory with product names
+      const enrichedInventory = await Promise.all(
+        inventory.map(async (item) => {
+          try {
+            const product = await ProductServiceClient.getProductById(
+              item.product_id
+            );
+            return {
+              ...item,
+              product_name: product.name || `Product ${item.product_id}`,
+            };
+          } catch (error) {
+            // If product fetch fails, continue with fallback name
+            logger.warn(
+              `Could not fetch product ${item.product_id}:`,
+              error.message
+            );
+            return {
+              ...item,
+              product_name: `Product ${item.product_id}`,
+            };
+          }
+        })
+      );
+
       res.json({
         success: true,
-        count: inventory.length,
-        data: inventory,
+        count: enrichedInventory.length,
+        data: enrichedInventory,
       });
     } catch (error) {
       logger.error("Get all inventory error:", error);
