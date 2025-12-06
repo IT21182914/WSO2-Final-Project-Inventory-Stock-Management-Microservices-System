@@ -153,41 +153,31 @@ const InventoryDashboard = () => {
 
   const columns = [
     {
-      header: "SKU",
-      accessor: "sku",
+      header: "Product Name",
+      accessor: "product_name",
       cell: (row) => (
-        <span className="font-medium text-dark-900">{row.sku}</span>
+        <span className="font-medium text-dark-900">{row.product_name}</span>
       ),
     },
     {
-      header: "Product Name",
-      accessor: "product_name",
-      cell: (row) => <span className="text-dark-800">{row.product_name}</span>,
+      header: "SKU",
+      accessor: "sku",
+      cell: (row) => (
+        <span className="text-dark-600 text-sm font-mono">{row.sku}</span>
+      ),
     },
     {
       header: "Location",
       accessor: "warehouse_location",
     },
     {
-      header: "Available",
-      accessor: "available_quantity",
+      header: "Quantity",
+      accessor: "quantity",
       cell: (row) => (
-        <span className="font-semibold text-primary">
-          {row.available_quantity}
+        <span className="font-semibold text-primary text-lg">
+          {row.quantity}
         </span>
       ),
-    },
-    {
-      header: "Reserved",
-      accessor: "reserved_quantity",
-      cell: (row) => (
-        <span className="text-dark-600">{row.reserved_quantity}</span>
-      ),
-    },
-    {
-      header: "Total",
-      accessor: "quantity",
-      cell: (row) => <span className="font-medium">{row.quantity}</span>,
     },
     {
       header: "Reorder Level",

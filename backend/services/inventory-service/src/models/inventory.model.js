@@ -49,7 +49,7 @@ class Inventory {
       query += ` AND quantity <= reorder_level`;
     }
 
-    query += " ORDER BY created_at DESC";
+    query += " ORDER BY quantity DESC, created_at DESC";
 
     try {
       const result = await db.query(query, params);
