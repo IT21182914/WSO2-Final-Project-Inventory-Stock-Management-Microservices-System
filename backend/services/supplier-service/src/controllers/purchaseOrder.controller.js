@@ -70,39 +70,73 @@ class PurchaseOrderController {
       if (supplier_id) filters.supplier_id = parseInt(supplier_id);
       if (limit) filters.limit = parseInt(limit);
 
+      logger.info("🔍 Fetching purchase orders with filters:", filters);
+
       const purchaseOrders = await PurchaseOrder.findAll(filters);
+
+      logger.info(`📦 Found ${purchaseOrders.length} purchase orders`);
 
       // Enrich with product details
       const enrichedOrders = await Promise.all(
-        purchaseOrders.map(async (order) => {
+        purchaseOrders.map(async (order, index) => {
+          logger.info(
+            `🔍 Processing order ${index + 1}/${purchaseOrders.length}:`,
+            {
+              id: order.id,
+              po_number: order.po_number,
+              product_id: order.product_id,
+            }
+          );
+
           if (order.product_id) {
             try {
-              const productResponse = await axios.get(
-                `${
-                  process.env.PRODUCT_CATALOG_URL ||
-                  "http://product-catalog:3002"
-                }/api/products/${order.product_id}`
-              );
+              const productUrl = `${
+                process.env.PRODUCT_SERVICE_URL ||
+                "http://product-catalog-service:3002"
+              }/api/products/${order.product_id}`;
+
+              logger.info(`🌐 Fetching product from: ${productUrl}`);
+
+              const productResponse = await axios.get(productUrl);
+
+              logger.info(`✅ Product fetched successfully:`, {
+                product_id: order.product_id,
+                product_name: productResponse.data.data?.name,
+                product_sku: productResponse.data.data?.sku,
+              });
+
               return {
                 ...order,
                 product_details: productResponse.data.data || null,
               };
             } catch (error) {
               logger.warn(
-                `Failed to fetch product ${order.product_id}:`,
+                `❌ Failed to fetch product ${order.product_id}:`,
                 error.message
               );
               return order;
             }
+          } else {
+            logger.warn(`⚠️ Order ${order.id} has no product_id`);
           }
           return order;
         })
       );
 
       logger.info(
-        `Retrieved ${enrichedOrders.length} purchase orders with filters:`,
-        filters
+        `✅ Retrieved ${enrichedOrders.length} enriched purchase orders`
       );
+
+      // Log sample of enriched data
+      if (enrichedOrders.length > 0) {
+        logger.info("📊 Sample enriched order:", {
+          id: enrichedOrders[0].id,
+          po_number: enrichedOrders[0].po_number,
+          product_id: enrichedOrders[0].product_id,
+          has_product_details: !!enrichedOrders[0].product_details,
+          product_details: enrichedOrders[0].product_details,
+        });
+      }
 
       res.json({
         success: true,
@@ -110,7 +144,7 @@ class PurchaseOrderController {
         data: enrichedOrders,
       });
     } catch (error) {
-      logger.error("Get all purchase orders error:", error);
+      logger.error("❌ Get all purchase orders error:", error);
       res.status(500).json({
         success: false,
         message: "Error fetching purchase orders",
