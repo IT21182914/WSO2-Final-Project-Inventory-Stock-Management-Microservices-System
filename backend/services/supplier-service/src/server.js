@@ -13,6 +13,7 @@ const {
 const supplierRoutes = require("./routes/supplier.routes");
 const purchaseOrderRoutes = require("./routes/purchaseOrder.routes");
 const supplierRatingRoutes = require("./routes/supplierRating.routes");
+const productSupplierRoutes = require("./routes/productSupplier.routes");
 const {
   errorHandler,
   notFoundHandler,
@@ -56,6 +57,7 @@ app.get("/metrics", async (req, res) => {
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/suppliers", supplierRatingRoutes);
 app.use("/api/purchase-orders", purchaseOrderRoutes);
+app.use("/api/product-suppliers", productSupplierRoutes);
 
 // Error handling
 app.use(notFoundHandler);

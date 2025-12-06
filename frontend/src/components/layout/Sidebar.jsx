@@ -76,6 +76,12 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       roles: ["admin", "warehouse_staff"],
     },
     {
+      name: "Product-Supplier Links",
+      path: "/product-suppliers",
+      icon: Truck,
+      roles: ["admin"],
+    },
+    {
       name: "Purchase Orders",
       path: "/purchase-orders",
       icon: ShoppingCart,

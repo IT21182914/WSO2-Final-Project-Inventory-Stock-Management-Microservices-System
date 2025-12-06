@@ -40,16 +40,25 @@ const PurchaseOrders = () => {
     notes: "",
   });
   const [products, setProducts] = useState([]);
+  const [availableProducts, setAvailableProducts] = useState([]); // Products available for selected supplier
 
   useEffect(() => {
     fetchData();
-    fetchProducts();
   }, []);
 
-  const fetchProducts = async () => {
+  // Fetch products when supplier is selected
+  useEffect(() => {
+    if (formData.supplier_id) {
+      fetchProductsBySupplier(formData.supplier_id);
+    } else {
+      setAvailableProducts([]);
+    }
+  }, [formData.supplier_id]);
+
+  const fetchProductsBySupplier = async (supplierId) => {
     try {
       const response = await fetch(
-        "http://localhost:3002/api/products?status=active",
+        `http://localhost:3004/api/product-suppliers/supplier/${supplierId}`,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("asgardeo_token")}`,
@@ -57,10 +66,27 @@ const PurchaseOrders = () => {
         }
       );
       const data = await response.json();
-      setProducts(data.data || []);
+
+      if (data.success) {
+        setAvailableProducts(data.data || []);
+
+        // Reset product selection if previously selected product is not available from this supplier
+        if (formData.product_id) {
+          const productStillAvailable = data.data.find(
+            (ps) => ps.product_id === parseInt(formData.product_id)
+          );
+          if (!productStillAvailable) {
+            setFormData((prev) => ({ ...prev, product_id: "" }));
+          }
+        }
+      } else {
+        toast.error(data.message || "Failed to load supplier products");
+        setAvailableProducts([]);
+      }
     } catch (error) {
-      console.error("Error fetching products:", error);
-      toast.error("Failed to load products");
+      console.error("Error fetching supplier products:", error);
+      toast.error("Failed to load products for this supplier");
+      setAvailableProducts([]);
     }
   };
 
@@ -96,7 +122,7 @@ const PurchaseOrders = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
 
-    // Validate requested quantity
+    // Validate requested quantity against minimum order quantity
     if (name === "requested_quantity") {
       const qty = parseInt(value);
       if (qty < 1) {
@@ -106,6 +132,19 @@ const PurchaseOrders = () => {
       if (qty > 10000) {
         toast.error("Quantity cannot exceed 10,000 units per order");
         return;
+      }
+
+      // Check minimum order quantity if product is selected
+      if (formData.product_id) {
+        const productSupplier = availableProducts.find(
+          (ps) => ps.product_id === parseInt(formData.product_id)
+        );
+        if (productSupplier && qty < productSupplier.minimum_order_quantity) {
+          toast.error(
+            `Minimum order quantity for this product is ${productSupplier.minimum_order_quantity} units`
+          );
+          return;
+        }
       }
     }
 
@@ -481,7 +520,7 @@ const PurchaseOrders = () => {
                       onChange={handleInputChange}
                       required
                     >
-                      <option value="">Select Supplier</option>
+                      <option value="">Select Supplier First</option>
                       {suppliers.map((supplier) => (
                         <option key={supplier.id} value={supplier.id}>
                           {supplier.name}
@@ -494,21 +533,70 @@ const PurchaseOrders = () => {
                   <div>
                     <label className="block text-sm font-medium text-dark-700 mb-2">
                       Product *
+                      {formData.supplier_id &&
+                        availableProducts.length === 0 && (
+                          <span className="text-yellow-600 text-xs ml-2">
+                            (No products assigned to this supplier)
+                          </span>
+                        )}
                     </label>
                     <select
                       name="product_id"
-                      className="w-full px-3 py-2 border border-dark-300 rounded-lg"
+                      className="w-full px-3 py-2 border border-dark-300 rounded-lg disabled:bg-gray-100 disabled:cursor-not-allowed"
                       value={formData.product_id}
                       onChange={handleInputChange}
+                      disabled={
+                        !formData.supplier_id || availableProducts.length === 0
+                      }
                       required
                     >
-                      <option value="">Select Product</option>
-                      {products.map((product) => (
-                        <option key={product.id} value={product.id}>
-                          {product.name} ({product.sku}) - ${product.unit_price}
+                      <option value="">
+                        {!formData.supplier_id
+                          ? "Select Supplier First"
+                          : availableProducts.length === 0
+                          ? "No Products Available"
+                          : "Select Product"}
+                      </option>
+                      {availableProducts.map((ps) => (
+                        <option key={ps.product_id} value={ps.product_id}>
+                          {ps.product_name} ({ps.product_sku}) - $
+                          {ps.supplier_unit_price}
+                          {ps.minimum_order_quantity > 1 &&
+                            ` (MOQ: ${ps.minimum_order_quantity})`}
                         </option>
                       ))}
                     </select>
+                    {formData.supplier_id && formData.product_id && (
+                      <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-800">
+                        {(() => {
+                          const ps = availableProducts.find(
+                            (p) =>
+                              p.product_id === parseInt(formData.product_id)
+                          );
+                          return ps ? (
+                            <>
+                              <p>
+                                <strong>Supplier Price:</strong> $
+                                {ps.supplier_unit_price}
+                              </p>
+                              <p>
+                                <strong>Lead Time:</strong> {ps.lead_time_days}{" "}
+                                days
+                              </p>
+                              <p>
+                                <strong>Min Order:</strong>{" "}
+                                {ps.minimum_order_quantity} units
+                              </p>
+                              {ps.is_preferred && (
+                                <p className="text-green-600">
+                                  <strong>✓ Preferred Supplier</strong>
+                                </p>
+                              )}
+                            </>
+                          ) : null;
+                        })()}
+                      </div>
+                    )}
                   </div>
                 )}
                 {canManagePO && (

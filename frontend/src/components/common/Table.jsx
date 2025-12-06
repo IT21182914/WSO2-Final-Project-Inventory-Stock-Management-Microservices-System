@@ -36,18 +36,29 @@ const Table = ({
   // Render row for column mode
   const renderColumnRow = (item, index) => (
     <tr key={index}>
-      {columns.map((col, colIndex) => (
-        <td
-          key={colIndex}
-          className="px-6 py-4 whitespace-nowrap text-sm text-dark-900"
-        >
-          {col.cell
-            ? col.cell(item)
-            : col.render
-            ? col.render(item)
-            : item[col.accessor]}
-        </td>
-      ))}
+      {columns.map((col, colIndex) => {
+        let cellValue;
+
+        // Support function accessor
+        if (typeof col.accessor === "function") {
+          cellValue = col.accessor(item);
+        } else if (col.cell) {
+          cellValue = col.cell(item);
+        } else if (col.render) {
+          cellValue = col.render(item);
+        } else {
+          cellValue = item[col.accessor];
+        }
+
+        return (
+          <td
+            key={colIndex}
+            className="px-6 py-4 whitespace-nowrap text-sm text-dark-900"
+          >
+            {cellValue}
+          </td>
+        );
+      })}
     </tr>
   );
 

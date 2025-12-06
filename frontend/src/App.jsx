@@ -43,6 +43,7 @@ import SupplierList from "./pages/suppliers/SupplierList";
 import PurchaseOrders from "./pages/suppliers/PurchaseOrders";
 import PurchaseRequests from "./pages/suppliers/PurchaseRequests";
 import SupplierProfile from "./pages/suppliers/SupplierProfile";
+import ProductSupplierManagement from "./pages/suppliers/ProductSupplierManagement";
 
 // Order Pages
 import OrderList from "./pages/orders/OrderList";
@@ -228,6 +229,14 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={["admin", "warehouse_staff"]}>
                     <SupplierList />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/product-suppliers"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <ProductSupplierManagement />
                   </ProtectedRoute>
                 }
               />

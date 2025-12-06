@@ -1,4 +1,5 @@
 const PurchaseOrder = require("../models/purchaseOrder.model");
+const ProductSupplier = require("../models/productSupplier.model");
 const logger = require("../config/logger");
 const axios = require("axios");
 
@@ -8,6 +9,39 @@ const INVENTORY_SERVICE_URL =
 class PurchaseOrderController {
   async createPurchaseOrder(req, res) {
     try {
+      const { supplier_id, product_id, quantity } = req.body;
+
+      // Validate that this supplier can provide this product
+      const productSupplier = await ProductSupplier.findOne(
+        product_id,
+        supplier_id
+      );
+
+      if (!productSupplier) {
+        logger.warn(
+          `Supplier ${supplier_id} cannot provide product ${product_id}`
+        );
+        return res.status(400).json({
+          success: false,
+          message: "This supplier cannot provide the selected product",
+        });
+      }
+
+      if (!productSupplier.is_active) {
+        return res.status(400).json({
+          success: false,
+          message: "This product-supplier relationship is not active",
+        });
+      }
+
+      // Check minimum order quantity
+      if (quantity < productSupplier.minimum_order_quantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Minimum order quantity for this product from this supplier is ${productSupplier.minimum_order_quantity}`,
+        });
+      }
+
       const purchaseOrder = await PurchaseOrder.create(req.body);
 
       logger.info(`Purchase order ${purchaseOrder.id} created successfully`);
