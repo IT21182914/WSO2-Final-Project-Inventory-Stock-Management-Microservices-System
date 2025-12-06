@@ -39,7 +39,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: supplier-service
-        image: ghcr.io/it21182914/supplier-service:7d02fff
+        image: ghcr.io/it21182914/supplier-service:3fb43b6
         imagePullPolicy: Always
         ports:
         - name: http
