@@ -31,6 +31,20 @@ const OrderList = () => {
       setOrders(response.data || []);
     } catch (error) {
       console.error("Error fetching orders:", error);
+      const errorMsg = error.response?.data?.message || error.message || "";
+
+      if (errorMsg.includes("network") || errorMsg.includes("connection")) {
+        toast.error(
+          "Unable to load orders. Please check your internet connection."
+        );
+      } else if (
+        error.response?.status === 401 ||
+        error.response?.status === 403
+      ) {
+        toast.error("You don't have permission to view orders.");
+      } else {
+        toast.error("Unable to load orders. Please refresh the page.");
+      }
     } finally {
       setLoading(false);
     }
@@ -84,13 +98,35 @@ const OrderList = () => {
   };
 
   const handleDelete = async (orderId) => {
-    if (window.confirm("Are you sure you want to delete this order?")) {
+    if (
+      window.confirm(
+        "Are you sure you want to delete this order? This action cannot be undone."
+      )
+    ) {
       try {
         await orderService.cancelOrder(orderId);
+        toast.success("Order cancelled successfully!");
         fetchOrders();
       } catch (error) {
         console.error("Error deleting order:", error);
-        toast.error("Failed to delete order");
+
+        const errorMsg = error.response?.data?.message || error.message || "";
+        let friendlyMessage = "Unable to cancel the order. Please try again.";
+
+        if (errorMsg.includes("shipped") || errorMsg.includes("delivered")) {
+          friendlyMessage =
+            "This order has already been shipped and cannot be cancelled.";
+        } else if (errorMsg.includes("not found")) {
+          friendlyMessage =
+            "Order not found. It may have already been cancelled.";
+        } else if (
+          errorMsg.includes("permission") ||
+          errorMsg.includes("unauthorized")
+        ) {
+          friendlyMessage = "You don't have permission to cancel this order.";
+        }
+
+        toast.error(friendlyMessage);
       }
     }
   };

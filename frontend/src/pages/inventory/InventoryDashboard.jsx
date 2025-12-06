@@ -180,12 +180,27 @@ const InventoryDashboard = () => {
       ),
     },
     {
-      header: "Reorder Level",
-      accessor: "reorder_level",
+      header: "Reserved",
+      accessor: "reserved_quantity",
+      cell: (row) => (
+        <span className="text-warning font-medium">
+          {row.reserved_quantity || 0}
+        </span>
+      ),
     },
     {
-      header: "Max Stock",
-      accessor: "max_stock_level",
+      header: "Available",
+      accessor: "available_quantity",
+      cell: (row) => (
+        <span className="font-semibold text-success">
+          {row.available_quantity ||
+            row.quantity - (row.reserved_quantity || 0)}
+        </span>
+      ),
+    },
+    {
+      header: "Reorder Level",
+      accessor: "reorder_level",
     },
     {
       header: "Status",

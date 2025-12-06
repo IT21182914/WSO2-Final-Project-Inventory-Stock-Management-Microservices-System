@@ -210,36 +210,87 @@ const OrderCreate = () => {
     } catch (error) {
       console.error("Error creating order:", error);
 
-      // Enhanced error handling for stock issues
-      const errorMessage =
-        error.response?.data?.message || "Failed to create order";
+      // Get user-friendly error message
+      const getUserFriendlyError = (err) => {
+        const errorMessage =
+          err.response?.data?.message ||
+          err.message ||
+          "Failed to create order";
 
-      if (
-        errorMessage.includes("Stock not available") ||
-        errorMessage.includes("Insufficient stock")
-      ) {
-        // Parse stock shortage details if available
-        try {
-          const match = errorMessage.match(/\[{.*}\]/);
-          if (match) {
-            const stockInfo = JSON.parse(match[0]);
-            const details = stockInfo
-              .map(
-                (item) =>
-                  `${item.sku || item.product_id}: needs ${
-                    item.requested
-                  }, has ${item.currentStock} (shortage: ${item.shortage})`
-              )
-              .join(", ");
-            toast.error(`Stock not available - ${details}`, { duration: 5000 });
-            return;
+        // Stock availability issues
+        if (
+          errorMessage.includes("Stock not available") ||
+          errorMessage.includes("Insufficient stock")
+        ) {
+          try {
+            const match = errorMessage.match(/\[{.*}\]/);
+            if (match) {
+              const stockInfo = JSON.parse(match[0]);
+              const productNames = orderItems
+                .filter((item) => stockInfo.some((s) => s.sku === item.sku))
+                .map((item) => item.product_name || item.sku);
+
+              if (stockInfo.length === 1) {
+                const item = stockInfo[0];
+                const productName = productNames[0] || item.sku;
+                return `Sorry! ${productName} is low on stock. We currently have ${
+                  item.currentStock
+                } unit${
+                  item.currentStock !== 1 ? "s" : ""
+                } available (some may be reserved for other orders), but you requested ${
+                  item.requested
+                }. Please reduce your quantity to ${
+                  item.currentStock
+                } or less.`;
+              } else {
+                return `Some items are out of stock. Please check your quantities and try again.`;
+              }
+            }
+          } catch (e) {
+            return "Sorry, we don't have enough stock for this order. Please reduce quantities or remove some items.";
           }
-        } catch (e) {
-          // Fallback to simple message
+          return "Some items are currently unavailable. Please check stock levels.";
         }
-      }
 
-      toast.error(errorMessage);
+        // Product validation errors
+        if (
+          errorMessage.includes("not available for sale") ||
+          errorMessage.includes("not found")
+        ) {
+          return "One or more products in your order are currently unavailable. Please check your selection.";
+        }
+
+        // Order validation errors
+        if (
+          errorMessage.includes("customer") &&
+          errorMessage.includes("not found")
+        ) {
+          return "Customer information is invalid. Please check and try again.";
+        }
+
+        // Payment errors
+        if (errorMessage.includes("payment")) {
+          return "There was an issue with the payment information. Please check and try again.";
+        }
+
+        // Database/system errors
+        if (
+          errorMessage.includes("database") ||
+          errorMessage.includes("connection")
+        ) {
+          return "We're experiencing technical difficulties. Please try again in a moment.";
+        }
+
+        // Generic fallback
+        if (errorMessage.length > 100) {
+          return "Unable to create order. Please check all information and try again.";
+        }
+
+        return errorMessage;
+      };
+
+      const friendlyMessage = getUserFriendlyError(error);
+      toast.error(friendlyMessage, { duration: 6000 });
     } finally {
       setLoading(false);
     }
