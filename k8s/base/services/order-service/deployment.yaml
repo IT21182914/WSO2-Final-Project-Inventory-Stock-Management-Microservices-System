@@ -39,7 +39,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: order-service
-        image: ghcr.io/it21182914/order-service:f872e15
+        image: ghcr.io/it21182914/order-service:7d02fff
         imagePullPolicy: Always
         ports:
         - name: http
