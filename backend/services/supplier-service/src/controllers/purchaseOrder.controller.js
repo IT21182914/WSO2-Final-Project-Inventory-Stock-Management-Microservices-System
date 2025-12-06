@@ -105,9 +105,30 @@ class PurchaseOrderController {
                 product_sku: productResponse.data.data?.sku,
               });
 
+              // Fetch supplier price from product_suppliers table
+              let supplierPrice = null;
+              if (order.supplier_id) {
+                try {
+                  const productSupplier = await ProductSupplier.findOne(
+                    order.product_id,
+                    order.supplier_id
+                  );
+                  if (productSupplier) {
+                    supplierPrice = productSupplier.supplier_unit_price;
+                    logger.info(`💰 Supplier price found: $${supplierPrice}`);
+                  }
+                } catch (priceError) {
+                  logger.warn(
+                    `⚠️ Failed to fetch supplier price:`,
+                    priceError.message
+                  );
+                }
+              }
+
               return {
                 ...order,
                 product_details: productResponse.data.data || null,
+                supplier_price: supplierPrice,
               };
             } catch (error) {
               logger.warn(

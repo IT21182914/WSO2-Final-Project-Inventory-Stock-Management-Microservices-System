@@ -129,11 +129,26 @@ const PurchaseRequests = () => {
       request.product_details
     );
 
+    // Auto-calculate quoted amount if supplier price is available
+    const autoQuotedAmount =
+      request.supplier_price && request.requested_quantity
+        ? (
+            parseFloat(request.supplier_price) *
+            parseInt(request.requested_quantity)
+          ).toFixed(2)
+        : "";
+
+    console.log("💰 Auto-calculated quoted amount:", {
+      supplier_price: request.supplier_price,
+      requested_quantity: request.requested_quantity,
+      quoted_amount: autoQuotedAmount,
+    });
+
     setSelectedRequest(request);
     setResponseData({
       response: "approved",
       approved_quantity: request.requested_quantity || "",
-      quoted_amount: "",
+      quoted_amount: autoQuotedAmount,
       rejection_reason: "",
       estimated_delivery_date: "",
       supplier_notes: "",
@@ -505,17 +520,10 @@ const PurchaseRequests = () => {
                                   {selectedRequest.product_details.name}
                                 </span>
                               </div>
-                              <div>
+                              <div className="col-span-2">
                                 <span className="text-gray-600">SKU:</span>
                                 <span className="ml-2 font-semibold text-gray-900">
                                   {selectedRequest.product_details.sku}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-gray-600">Category:</span>
-                                <span className="ml-2 font-semibold text-gray-900">
-                                  {selectedRequest.product_details.category ||
-                                    "N/A"}
                                 </span>
                               </div>
                               {selectedRequest.product_details.description && (
@@ -529,6 +537,20 @@ const PurchaseRequests = () => {
                                         .description
                                     }
                                   </p>
+                                </div>
+                              )}
+                              {selectedRequest.supplier_price && (
+                                <div className="col-span-2 mt-2 pt-2 border-t border-gray-200">
+                                  <span className="text-gray-600">
+                                    Your Price:
+                                  </span>
+                                  <span className="ml-2 font-bold text-green-600 text-base">
+                                    $
+                                    {parseFloat(
+                                      selectedRequest.supplier_price
+                                    ).toFixed(2)}{" "}
+                                    per unit
+                                  </span>
                                 </div>
                               )}
                             </div>
@@ -649,9 +671,28 @@ const PurchaseRequests = () => {
                         step="1"
                         value={responseData.approved_quantity}
                         onChange={(e) => {
+                          const newQuantity = e.target.value;
+
+                          // Recalculate quoted amount if supplier price exists
+                          let newQuotedAmount = responseData.quoted_amount;
+                          if (selectedRequest?.supplier_price && newQuantity) {
+                            const qty = parseInt(newQuantity);
+                            if (!isNaN(qty) && qty > 0) {
+                              newQuotedAmount = (
+                                parseFloat(selectedRequest.supplier_price) * qty
+                              ).toFixed(2);
+                              console.log("💰 Recalculated quoted amount:", {
+                                supplier_price: selectedRequest.supplier_price,
+                                new_quantity: qty,
+                                new_quoted_amount: newQuotedAmount,
+                              });
+                            }
+                          }
+
                           setResponseData({
                             ...responseData,
-                            approved_quantity: e.target.value,
+                            approved_quantity: newQuantity,
+                            quoted_amount: newQuotedAmount,
                           });
                         }}
                         onBlur={(e) => {
