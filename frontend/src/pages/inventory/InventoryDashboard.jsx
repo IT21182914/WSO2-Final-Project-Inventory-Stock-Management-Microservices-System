@@ -25,6 +25,7 @@ const InventoryDashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showReserveModal, setShowReserveModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [editFormData, setEditFormData] = useState({
     adjustment_type: "in",
@@ -32,6 +33,10 @@ const InventoryDashboard = () => {
     warehouse_location: "",
     reorder_level: "",
     max_stock_level: "",
+    notes: "",
+  });
+  const [reserveFormData, setReserveFormData] = useState({
+    quantity: "",
     notes: "",
   });
 
@@ -98,6 +103,51 @@ const InventoryDashboard = () => {
       notes: "",
     });
     setShowEditModal(true);
+  };
+
+  const handleReserveClick = (item) => {
+    setSelectedItem(item);
+    setReserveFormData({
+      quantity: "",
+      notes: "",
+    });
+    setShowReserveModal(true);
+  };
+
+  const handleReserveStock = async (e) => {
+    e.preventDefault();
+    try {
+      const quantity = parseInt(reserveFormData.quantity);
+      if (!quantity || quantity <= 0) {
+        toast.error("Please enter a valid quantity");
+        return;
+      }
+
+      if (quantity > selectedItem.available_quantity) {
+        toast.error(
+          `Cannot reserve ${quantity} units. Only ${selectedItem.available_quantity} units available.`
+        );
+        return;
+      }
+
+      await axios.post("http://localhost:3003/api/inventory/reserve", {
+        product_id: selectedItem.product_id,
+        quantity: quantity,
+        order_id: null, // Admin manual reservation
+        notes:
+          reserveFormData.notes ||
+          `Admin manual reservation - ${new Date().toLocaleString()}`,
+      });
+
+      toast.success(
+        `Successfully reserved ${quantity} units of ${selectedItem.product_name}`
+      );
+      setShowReserveModal(false);
+      fetchInventory();
+    } catch (error) {
+      console.error("Error reserving stock:", error);
+      toast.error(error.response?.data?.message || "Failed to reserve stock");
+    }
   };
 
   const handleUpdateInventory = async (e) => {
@@ -214,10 +264,20 @@ const InventoryDashboard = () => {
       header: "Actions",
       accessor: "actions",
       cell: (row) => (
-        <Button size="sm" variant="outline" onClick={() => handleEdit(row)}>
-          <FiEdit size={16} className="mr-1" />
-          Edit
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => handleEdit(row)}>
+            <FiEdit size={16} className="mr-1" />
+            Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => handleReserveClick(row)}
+          >
+            <FiPackage size={16} className="mr-1" />
+            Reserve
+          </Button>
+        </div>
       ),
     },
   ];
@@ -423,6 +483,76 @@ const InventoryDashboard = () => {
                   </Button>
                   <Button type="submit" variant="primary">
                     Update Inventory
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Reserve Stock Modal */}
+      {showReserveModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <Card className="max-w-md w-full">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold mb-4">
+                Reserve Stock - {selectedItem?.product_name}
+              </h2>
+              <p className="text-sm text-dark-600 mb-4">
+                SKU: <span className="font-bold">{selectedItem?.sku}</span>
+                <br />
+                Available Stock:{" "}
+                <span className="font-bold text-success">
+                  {selectedItem?.available_quantity}
+                </span>{" "}
+                units
+              </p>
+              <form onSubmit={handleReserveStock} className="space-y-4">
+                <Input
+                  label="Quantity to Reserve"
+                  type="number"
+                  value={reserveFormData.quantity}
+                  onChange={(e) =>
+                    setReserveFormData({
+                      ...reserveFormData,
+                      quantity: e.target.value,
+                    })
+                  }
+                  placeholder="Enter quantity"
+                  min="1"
+                  max={selectedItem?.available_quantity}
+                  required
+                />
+
+                <div>
+                  <label className="block text-sm font-medium text-dark-700 mb-2">
+                    Notes (Optional)
+                  </label>
+                  <textarea
+                    value={reserveFormData.notes}
+                    onChange={(e) =>
+                      setReserveFormData({
+                        ...reserveFormData,
+                        notes: e.target.value,
+                      })
+                    }
+                    placeholder="Reason for reservation (e.g., Special order, VIP customer)"
+                    className="w-full px-4 py-2 border border-dark-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white text-dark-900"
+                    rows="3"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-4 mt-6">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setShowReserveModal(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="primary">
+                    Reserve Stock
                   </Button>
                 </div>
               </form>

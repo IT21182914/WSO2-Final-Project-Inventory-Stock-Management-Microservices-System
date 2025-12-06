@@ -117,16 +117,21 @@ class InventoryService {
           sku: inventory.sku, // Add SKU from inventory
           quantity: -quantity,
           movement_type: "adjustment",
-          reference_id: orderId.toString(),
-          notes: `Stock reserved for order #${orderId}`,
+          reference_id: orderId ? orderId.toString() : null,
+          notes: orderId
+            ? `Stock reserved for order #${orderId}`
+            : `Admin manual reservation`,
         },
         client
       );
 
       await client.query("COMMIT");
 
+      const orderInfo = orderId
+        ? `for order ${orderId}`
+        : "(admin manual reservation)";
       logger.info(
-        `✅ Successfully reserved ${quantity} units of product ${productId} (SKU: ${inventory.sku}) for order ${orderId}`
+        `✅ Successfully reserved ${quantity} units of product ${productId} (SKU: ${inventory.sku}) ${orderInfo}`
       );
       return updatedInventory;
     } catch (error) {

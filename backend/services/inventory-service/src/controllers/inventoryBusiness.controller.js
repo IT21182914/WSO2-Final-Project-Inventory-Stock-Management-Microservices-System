@@ -38,17 +38,18 @@ class InventoryBusinessController {
     try {
       const { product_id, quantity, order_id } = req.body;
 
-      if (!product_id || !quantity || !order_id) {
+      if (!product_id || !quantity) {
         return res.status(400).json({
           success: false,
-          message: "product_id, quantity, and order_id are required",
+          message: "product_id and quantity are required",
         });
       }
 
+      // order_id is optional (null for admin manual reservations)
       const inventory = await InventoryService.reserveStock(
         product_id,
         quantity,
-        order_id
+        order_id || null
       );
 
       res.json({
