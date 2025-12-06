@@ -15,7 +15,7 @@ const getAsgardeoToken = () => {
       if (parsed.access_token) {
         return parsed.access_token;
       }
-    } catch (e) {
+    } catch {
       // Parse error, try other methods
     }
   }
@@ -28,7 +28,7 @@ const getAsgardeoToken = () => {
       if (parsed.access_token) {
         return parsed.access_token;
       }
-    } catch (e) {
+    } catch {
       // Parse error
     }
   }
@@ -42,7 +42,7 @@ const getAsgardeoToken = () => {
         if (data.access_token) {
           return data.access_token;
         }
-      } catch (e) {
+      } catch {
         // Continue searching
       }
     }

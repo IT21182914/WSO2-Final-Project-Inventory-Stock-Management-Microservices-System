@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { useAuth } from "../../context/AsgardeoAuthContext";
+import { useAuth } from "../../hooks/useAuth";
 import {
   LayoutDashboard,
   Package,

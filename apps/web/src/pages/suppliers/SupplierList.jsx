@@ -7,7 +7,7 @@ import Badge from "../../components/common/Badge";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import Modal from "../../components/common/Modal";
 import { identityService } from "../../services/identityService";
-import { useAuth } from "../../context/AsgardeoAuthContext";
+import { useAuth } from "../../hooks/useAuth";
 import { FiTrash2, FiMail, FiPhone, FiUserPlus, FiUser } from "react-icons/fi";
 
 const SupplierList = () => {

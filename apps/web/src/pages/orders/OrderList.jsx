@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import Card from "../../components/common/Card";
@@ -16,11 +16,7 @@ const OrderList = () => {
   const [filter, setFilter] = useState({ status: "", user_id: "" });
   const [showFilters, setShowFilters] = useState(false);
 
-  useEffect(() => {
-    fetchOrders();
-  }, []);
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
       const params = {};
@@ -34,7 +30,11 @@ const OrderList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter.status, filter.user_id]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   const handleStatusChange = async (orderId, newStatus) => {
     try {

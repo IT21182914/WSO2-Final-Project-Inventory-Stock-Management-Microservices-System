@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../context/AsgardeoAuthContext";
+import { useAuth } from "../../hooks/useAuth";
 import { Shield, Loader2 } from "lucide-react";
 
 /**

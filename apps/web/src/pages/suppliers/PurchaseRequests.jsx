@@ -9,10 +9,8 @@ import { supplierService } from "../../services/supplierService";
 import apiClient from "../../utils/axios";
 import { API } from "../../utils/constants";
 import toast from "react-hot-toast";
-import { useAuth } from "../../context/AsgardeoAuthContext";
 
 const PurchaseRequests = () => {
-  const { user } = useAuth();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState(null);

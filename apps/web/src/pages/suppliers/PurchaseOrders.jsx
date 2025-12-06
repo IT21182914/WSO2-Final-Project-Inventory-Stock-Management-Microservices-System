@@ -8,7 +8,7 @@ import LoadingSpinner from "../../components/common/LoadingSpinner";
 import Input from "../../components/common/Input";
 import { supplierService } from "../../services/supplierService";
 import { FiPlus, FiEdit, FiTrash2, FiFilter, FiStar } from "react-icons/fi";
-import { useAuth } from "../../context/AsgardeoAuthContext";
+import { useAuth } from "../../hooks/useAuth";
 
 const PurchaseOrders = () => {
   const { user } = useAuth();

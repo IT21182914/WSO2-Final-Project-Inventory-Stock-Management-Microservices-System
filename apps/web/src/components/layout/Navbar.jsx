@@ -1,5 +1,5 @@
 import { Menu, Bell, LogOut, User, ExternalLink } from "lucide-react";
-import { useAuth } from "../../context/AsgardeoAuthContext";
+import { useAuth } from "../../hooks/useAuth";
 import { useState } from "react";
 
 const Navbar = ({ toggleSidebar }) => {
