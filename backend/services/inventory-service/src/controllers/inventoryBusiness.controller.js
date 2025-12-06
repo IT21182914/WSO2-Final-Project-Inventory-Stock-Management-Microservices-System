@@ -220,7 +220,8 @@ class InventoryBusinessController {
           i.warehouse_location,
           i.quantity as actual_quantity,
           i.reserved_quantity,
-          i.available_quantity
+          (i.quantity - i.reserved_quantity) as available_quantity,
+          i.reorder_level as actual_reorder_level
         FROM low_stock_alerts lsa
         JOIN inventory i ON i.product_id = lsa.product_id
         WHERE lsa.status = $1
@@ -231,11 +232,42 @@ class InventoryBusinessController {
       const result = await db.query(query, [status]);
 
       console.log("Alerts found:", result.rows.length);
-      console.log("Alerts data:", JSON.stringify(result.rows, null, 2));
+
+      // Filter for active products only
+      const PRODUCT_SERVICE_URL =
+        process.env.PRODUCT_CATALOG_SERVICE_URL ||
+        "http://product-catalog-service:3002/api";
+      const axios = require("axios");
+
+      let filteredAlerts = result.rows;
+      if (result.rows.length > 0) {
+        try {
+          const productIds = result.rows.map((alert) => alert.product_id);
+          const productsResponse = await axios.post(
+            `${PRODUCT_SERVICE_URL}/products/batch`,
+            { ids: productIds }
+          );
+
+          const activeProductIds = new Set(
+            productsResponse.data.data
+              .filter((p) => p.lifecycle_state === "active")
+              .map((p) => p.id)
+          );
+
+          filteredAlerts = result.rows.filter((alert) =>
+            activeProductIds.has(alert.product_id)
+          );
+
+          console.log("Active product alerts:", filteredAlerts.length);
+        } catch (error) {
+          console.error("Error fetching products:", error.message);
+          // If can't verify products, return all alerts
+        }
+      }
 
       res.json({
         success: true,
-        data: result.rows,
+        data: filteredAlerts,
       });
     } catch (error) {
       console.error("Error getting low stock alerts:", error);

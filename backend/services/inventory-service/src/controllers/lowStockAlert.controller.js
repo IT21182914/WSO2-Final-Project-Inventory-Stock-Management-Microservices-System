@@ -10,11 +10,15 @@ class LowStockAlertController {
       console.log("=== GET LOW STOCK ALERTS ===");
       console.log("Status filter:", status);
 
+      // Get alerts with inventory data
       const result = await db.query(
         `SELECT 
           lsa.*,
           i.warehouse_location,
-          i.reorder_level
+          i.reorder_level as actual_reorder_level,
+          i.quantity,
+          i.reserved_quantity,
+          (i.quantity - i.reserved_quantity) as available_quantity
          FROM low_stock_alerts lsa
          JOIN inventory i ON i.product_id = lsa.product_id
          WHERE lsa.status = $1
@@ -23,12 +27,43 @@ class LowStockAlertController {
       );
 
       console.log("Alerts found:", result.rows.length);
-      console.log("Alerts:", JSON.stringify(result.rows, null, 2));
+
+      // Filter for active products only
+      const PRODUCT_SERVICE_URL =
+        process.env.PRODUCT_CATALOG_SERVICE_URL ||
+        "http://product-catalog-service:3002/api";
+      const axios = require("axios");
+
+      let filteredAlerts = result.rows;
+      if (result.rows.length > 0) {
+        try {
+          const productIds = result.rows.map((alert) => alert.product_id);
+          const productsResponse = await axios.post(
+            `${PRODUCT_SERVICE_URL}/products/batch`,
+            { ids: productIds }
+          );
+
+          const activeProductIds = new Set(
+            productsResponse.data.data
+              .filter((p) => p.lifecycle_state === "active")
+              .map((p) => p.id)
+          );
+
+          filteredAlerts = result.rows.filter((alert) =>
+            activeProductIds.has(alert.product_id)
+          );
+
+          console.log("Active product alerts:", filteredAlerts.length);
+        } catch (error) {
+          console.error("Error fetching products:", error.message);
+          // If can't verify products, return all alerts
+        }
+      }
 
       res.json({
         success: true,
-        count: result.rows.length,
-        data: result.rows,
+        count: filteredAlerts.length,
+        data: filteredAlerts,
       });
     } catch (error) {
       console.error("Get low stock alerts error:", error);
@@ -49,19 +84,62 @@ class LowStockAlertController {
 
       console.log("=== CHECKING LOW STOCK ===");
 
-      // Find inventory items below reorder level
+      // Find inventory items below min_quantity for ACTIVE products only
+      const PRODUCT_SERVICE_URL =
+        process.env.PRODUCT_CATALOG_SERVICE_URL ||
+        "http://product-catalog-service:3002/api";
+      const axios = require("axios");
+
       const lowStockItems = await client.query(
         `SELECT 
           i.product_id,
           i.sku,
-          i.available_quantity as current_quantity,
+          i.quantity,
+          i.reserved_quantity,
+          (i.quantity - i.reserved_quantity) as available_quantity,
           i.reorder_level
          FROM inventory i
-         WHERE i.available_quantity <= i.reorder_level`
+         WHERE i.reorder_level IS NOT NULL 
+           AND i.reorder_level > 0
+           AND (i.quantity - i.reserved_quantity) < i.reorder_level`
       );
 
-      console.log("Low stock items found:", lowStockItems.rows.length);
-      console.log("Items:", JSON.stringify(lowStockItems.rows, null, 2));
+      console.log(
+        "Low stock items found (before filtering):",
+        lowStockItems.rows.length
+      );
+
+      // Filter for active products only
+      let activeItems = [];
+      if (lowStockItems.rows.length > 0) {
+        const productIds = lowStockItems.rows.map((item) => item.product_id);
+        try {
+          const productsResponse = await axios.post(
+            `${PRODUCT_SERVICE_URL}/products/batch`,
+            { ids: productIds }
+          );
+
+          const activeProductIds = new Set(
+            productsResponse.data.data
+              .filter((p) => p.lifecycle_state === "active")
+              .map((p) => p.id)
+          );
+
+          activeItems = lowStockItems.rows.filter((item) =>
+            activeProductIds.has(item.product_id)
+          );
+
+          console.log("Active products with low stock:", activeItems.length);
+        } catch (error) {
+          console.error("Error fetching products:", error.message);
+          // If can't verify products, continue with all items
+          activeItems = lowStockItems.rows;
+        }
+      }
+
+      console.log("Items to check for alerts:", activeItems.length);
+
+      console.log("Items to check for alerts:", activeItems.length);
 
       // Check for existing active alerts
       const existingAlerts = await client.query(
@@ -78,7 +156,7 @@ class LowStockAlertController {
       const existingProductIds = new Set(
         existingAlerts.rows.map((a) => a.product_id)
       );
-      const itemsToAlert = lowStockItems.rows.filter(
+      const itemsToAlert = activeItems.filter(
         (item) => !existingProductIds.has(item.product_id)
       );
 
@@ -88,14 +166,19 @@ class LowStockAlertController {
       const alerts = [];
       for (const item of itemsToAlert) {
         console.log(
-          `Creating alert for product ${item.product_id}, SKU: ${item.sku}`
+          `Creating alert for product ${item.product_id}, SKU: ${item.sku}, Available: ${item.available_quantity}, Min: ${item.reorder_level}`
         );
         const alertResult = await client.query(
           `INSERT INTO low_stock_alerts 
            (product_id, sku, current_quantity, reorder_level, status)
            VALUES ($1, $2, $3, $4, 'active')
            RETURNING *`,
-          [item.product_id, item.sku, item.current_quantity, item.reorder_level]
+          [
+            item.product_id,
+            item.sku,
+            item.available_quantity,
+            item.reorder_level,
+          ]
         );
         alerts.push(alertResult.rows[0]);
       }

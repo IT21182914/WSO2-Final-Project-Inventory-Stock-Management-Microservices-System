@@ -430,12 +430,20 @@ class InventoryService {
 
       await client.query("COMMIT");
 
-      // Clear low stock alerts if stock is now sufficient
-      if (inventory.quantity > inventory.reorder_level) {
+      // Auto-resolve low stock alerts if restocked above reorder level
+      const availableQuantity =
+        inventory.quantity - (inventory.reserved_quantity || 0);
+      if (availableQuantity >= inventory.reorder_level) {
         await db.query(
-          `UPDATE stock_alerts SET status = 'resolved', updated_at = CURRENT_TIMESTAMP 
+          `UPDATE low_stock_alerts 
+           SET status = 'resolved', 
+               resolved_at = CURRENT_TIMESTAMP
            WHERE product_id = $1 AND status = 'active'`,
           [productId]
+        );
+
+        logger.info(
+          `Auto-resolved low stock alert for product ${productId} after receiving stock - Available: ${availableQuantity}, Reorder Level: ${inventory.reorder_level}`
         );
       }
 

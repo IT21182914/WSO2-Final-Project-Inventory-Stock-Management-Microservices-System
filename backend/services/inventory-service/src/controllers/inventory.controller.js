@@ -216,6 +216,28 @@ class InventoryController {
         ]
       );
 
+      // Auto-resolve low stock alerts if restocked above reorder level
+      if (["in", "returned"].includes(movement_type)) {
+        const availableQuantity =
+          updatedInventory.quantity - updatedInventory.reserved_quantity;
+        const reorderLevel = updatedInventory.reorder_level || 0;
+
+        if (availableQuantity >= reorderLevel) {
+          await client.query(
+            `UPDATE low_stock_alerts
+             SET status = 'resolved',
+                 resolved_at = CURRENT_TIMESTAMP,
+                 resolved_by = $2
+             WHERE product_id = $1 AND status = 'active'`,
+            [product_id, performed_by]
+          );
+
+          logger.info(
+            `Auto-resolved low stock alert for product ${product_id} - Stock: ${availableQuantity}, Reorder Level: ${reorderLevel}`
+          );
+        }
+      }
+
       await client.query("COMMIT");
 
       logger.info(
