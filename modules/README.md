@@ -1,32 +1,34 @@
-# KubeStock Microservices Modules
+# Deprecated: Modules Directory
 
-This directory contains Git submodules for each microservice.
+⚠️ **This directory is deprecated and will be removed in a future release.**
 
-## Submodules
+## Migration Notice
 
-| Module | Description | Port |
-|--------|-------------|------|
-| `ms-product` | Product Catalog Service | 3002 |
-| `ms-inventory` | Inventory Management Service | 3003 |
-| `ms-supplier` | Supplier & Procurement Service | 3004 |
-| `ms-order-management` | Order Management Service | 3005 |
-| `ms-identity` | Identity/SCIM2 Proxy Service | 3006 |
+All microservices have been migrated from git submodules to a monorepo structure:
 
-## Initialize Submodules
+- **Old location**: `modules/ms-*` (git submodules)
+- **New location**: `services/ms-*` (regular directories)
 
-```bash
-# From the root of the repository
-git submodule update --init --recursive
-```
+## Services Moved
 
-## Update All Submodules
+The following services are now in the `services/` directory:
+- `ms-product` → Product Catalog Service
+- `ms-inventory` → Inventory Management Service  
+- `ms-supplier` → Supplier Service
+- `ms-order-management` → Order Management Service
+- `ms-identity` → Identity Service (SCIM2 Proxy)
 
-```bash
-git submodule update --remote --merge
-```
+## Frontend Migration
 
-## Add a New Submodule
+- **Old location**: `frontend/` (git submodule)
+- **New location**: `apps/web/` (regular directory)
 
-```bash
-git submodule add https://github.com/KubeStock-DevOps-project/ms-new-service.git modules/ms-new-service
-```
+## Benefits of Monorepo
+
+1. **Simplified Development**: No more git submodule complexity
+2. **Unified CI/CD**: Single workflow with change detection
+3. **Shared Dependencies**: Common packages in `packages/` directory
+4. **Turborepo**: Optimized builds with caching
+5. **Easier Collaboration**: All code in one repository
+
+See `MONOREPO.md` in the root directory for complete documentation.
