@@ -1,0 +1,23 @@
+{
+    "sub": "2cbe7153-c61d-490c-afe5-377a3713002c",
+    "aut": "APPLICATION_USER",
+    "binding_type": "sso-session",
+    "roles": "everyone",
+    "iss": "https://api.asgardeo.io/t/kubestock/oauth2/token",
+    "groups": [
+        "admin"
+    ],
+    "client_id": "NydMISKZZ5TdIEuRwJfYv62Yn7ka",
+    "aud": "NydMISKZZ5TdIEuRwJfYv62Yn7ka",
+    "nbf": 1765282306,
+    "azp": "NydMISKZZ5TdIEuRwJfYv62Yn7ka",
+    "org_id": "655848cc-0b7d-4127-bdd9-bef8f3f206bb",
+    "scope": "email groups openid profile",
+    "exp": 1765285906,
+    "org_name": "kubestock",
+    "iat": 1765282306,
+    "binding_ref": "928f0678ea1027b35b3b54cd539d1533",
+    "jti": "f565ec63-9bec-42d7-be0f-4da5162a379f",
+    "email": "kubestock62@gmail.com",
+    "org_handle": "kubestock"
+}
