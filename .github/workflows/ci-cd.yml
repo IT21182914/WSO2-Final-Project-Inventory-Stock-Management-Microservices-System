@@ -1,7 +1,7 @@
 # =============================================================================
 # KubeStock Monorepo - Continuous Integration & Deployment
 # =============================================================================
-# Triggers on push to main/develop: Build → Push to ECR → Update GitOps → Deploy
+# Flow: Build → Push to ECR → Deploy to Staging → Approval → Deploy to Production
 # =============================================================================
 
 name: CI/CD
@@ -16,7 +16,6 @@ env:
   NODE_VERSION: '18'
   AWS_REGION: ap-south-1
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com
-  # Defaults to canonical GitOps repo; override via repository/ORG/REPO secret if needed
   GITOPS_REPO: KubeStock-DevOps-project/kubestock-gitops
   GITOPS_BRANCH: main
 
@@ -40,7 +39,7 @@ jobs:
       ms-identity: ${{ steps.filter.outputs.ms-identity }}
       web: ${{ steps.filter.outputs.web }}
       any-service: ${{ steps.check.outputs.any-service }}
-      environment: ${{ steps.set-env.outputs.environment }}
+      image-tag: ${{ steps.tag.outputs.image-tag }}
     
     steps:
       - uses: actions/checkout@v4
@@ -82,14 +81,11 @@ jobs:
             echo "any-service=false" >> $GITHUB_OUTPUT
           fi
       
-      - name: Set environment
-        id: set-env
+      - name: Generate image tag
+        id: tag
         run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "environment=production" >> $GITHUB_OUTPUT
-          else
-            echo "environment=staging" >> $GITHUB_OUTPUT
-          fi
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "image-tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
 
   # ═══════════════════════════════════════════════════════════════
   # BUILD & PUSH TO ECR
@@ -100,6 +96,7 @@ jobs:
     runs-on: ubuntu-latest
     if: needs.detect-changes.outputs.any-service == 'true'
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: ms-product
@@ -126,14 +123,6 @@ jobs:
             changed: ${{ needs.detect-changes.outputs.web }}
             path: apps/web
             ecr-repo: kubestock/web
-    
-    outputs:
-      ms-product-tag: ${{ steps.push.outputs.ms-product-tag }}
-      ms-inventory-tag: ${{ steps.push.outputs.ms-inventory-tag }}
-      ms-supplier-tag: ${{ steps.push.outputs.ms-supplier-tag }}
-      ms-order-management-tag: ${{ steps.push.outputs.ms-order-management-tag }}
-      ms-identity-tag: ${{ steps.push.outputs.ms-identity-tag }}
-      web-tag: ${{ steps.push.outputs.web-tag }}
 
     steps:
       - name: Checkout code
@@ -157,27 +146,15 @@ jobs:
         uses: docker/setup-buildx-action@v3
         if: matrix.changed == 'true'
 
-      - name: Extract metadata
-        id: meta
-        if: matrix.changed == 'true'
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.ECR_REGISTRY }}/${{ matrix.ecr-repo }}
-          tags: |
-            type=sha,prefix={{branch}}-,format=short
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=raw,value=latest,enable={{is_default_branch}}
-
       - name: Build and push Docker image
-        id: push
         if: matrix.changed == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.path }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ matrix.ecr-repo }}:${{ needs.detect-changes.outputs.image-tag }}
+            ${{ env.ECR_REGISTRY }}/${{ matrix.ecr-repo }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
@@ -185,160 +162,205 @@ jobs:
       - name: Image summary
         if: matrix.changed == 'true'
         run: |
-          echo "## 🐳 ${{ matrix.name }} - Build & Push Complete" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Repository:** \`${{ matrix.ecr-repo }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Tag:** \`${{ github.ref_name }}-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Full Image:** \`${{ env.ECR_REGISTRY }}/${{ matrix.ecr-repo }}:${{ github.ref_name }}-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Image pushed to ECR" >> $GITHUB_STEP_SUMMARY
+          echo "## 🐳 ${{ matrix.name }} - Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** \`${{ needs.detect-changes.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ env.ECR_REGISTRY }}/${{ matrix.ecr-repo }}\`" >> $GITHUB_STEP_SUMMARY
 
   # ═══════════════════════════════════════════════════════════════
-  # STAGING APPROVAL (only for production deployments from main)
+  # DEPLOY TO STAGING
   # ═══════════════════════════════════════════════════════════════
-  staging-approval:
-    name: Approve Production Deployment
+  deploy-staging:
+    name: Deploy to Staging
     needs: [detect-changes, build-and-push]
     runs-on: ubuntu-latest
-    if: |
-      needs.detect-changes.outputs.environment == 'production' &&
-      needs.detect-changes.outputs.any-service == 'true'
+    if: needs.detect-changes.outputs.any-service == 'true'
     environment:
-      name: production
-      url: https://kubestock.example.com
+      name: staging
+      url: http://staging.kubestock.internal
     
-    steps:
-      - name: Deployment approval
-        run: |
-          echo "## 🚀 Production Deployment Approved" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Deploying to production environment..." >> $GITHUB_STEP_SUMMARY
-
-  # ═══════════════════════════════════════════════════════════════
-  # UPDATE GITOPS REPOSITORY
-  # ═══════════════════════════════════════════════════════════════
-  update-gitops:
-    name: Update GitOps
-    needs: [detect-changes, build-and-push, staging-approval]
-    runs-on: ubuntu-latest
-    if: |
-      always() &&
-      needs.detect-changes.outputs.any-service == 'true' &&
-      needs.build-and-push.result == 'success' &&
-      (needs.detect-changes.outputs.environment == 'staging' || needs.staging-approval.result == 'success')
-    strategy:
-      matrix:
-        include:
-          - name: ms-product
-            changed: ${{ needs.detect-changes.outputs.ms-product }}
-            image-name: kubestock/ms-product
-          - name: ms-inventory
-            changed: ${{ needs.detect-changes.outputs.ms-inventory }}
-            image-name: kubestock/ms-inventory
-          - name: ms-supplier
-            changed: ${{ needs.detect-changes.outputs.ms-supplier }}
-            image-name: kubestock/ms-supplier
-          - name: ms-order-management
-            changed: ${{ needs.detect-changes.outputs.ms-order-management }}
-            image-name: kubestock/ms-order-management
-          - name: ms-identity
-            changed: ${{ needs.detect-changes.outputs.ms-identity }}
-            image-name: kubestock/ms-identity
-          - name: web
-            changed: ${{ needs.detect-changes.outputs.web }}
-            image-name: kubestock/web
-
     steps:
       - name: Checkout GitOps repository
         uses: actions/checkout@v4
-        if: matrix.changed == 'true'
         with:
           repository: ${{ env.GITOPS_REPO }}
           ref: ${{ env.GITOPS_BRANCH }}
           token: ${{ secrets.GITOPS_REPO_TOKEN }}
 
-      - name: Update image tag in kustomization
-        if: matrix.changed == 'true'
+      - name: Update staging image tags
         run: |
-          OVERLAY_PATH="overlays/${{ needs.detect-changes.outputs.environment }}/kustomization.yaml"
-          IMAGE_TAG="${{ github.ref_name }}-${{ github.sha }}"
-          IMAGE_FULL="${{ env.ECR_REGISTRY }}/${{ matrix.image-name }}"
+          IMAGE_TAG="${{ needs.detect-changes.outputs.image-tag }}"
+          OVERLAY_PATH="overlays/staging/kustomization.yaml"
           
-          echo "Updating ${{ matrix.image-name }} to tag: $IMAGE_TAG"
+          echo "Updating staging images to tag: $IMAGE_TAG"
           
-          # Update the newTag for the specific image
-          sed -i "/name: .*\/${{ matrix.image-name }}/,/newTag:/s|newTag: .*|newTag: $IMAGE_TAG|" "$OVERLAY_PATH"
+          # Update all changed services
+          if [[ "${{ needs.detect-changes.outputs.ms-product }}" == "true" ]]; then
+            sed -i "/kubestock\/ms-product/,/newTag:/s/newTag: .*/newTag: $IMAGE_TAG/" "$OVERLAY_PATH"
+          fi
+          if [[ "${{ needs.detect-changes.outputs.ms-inventory }}" == "true" ]]; then
+            sed -i "/kubestock\/ms-inventory/,/newTag:/s/newTag: .*/newTag: $IMAGE_TAG/" "$OVERLAY_PATH"
+          fi
+          if [[ "${{ needs.detect-changes.outputs.ms-supplier }}" == "true" ]]; then
+            sed -i "/kubestock\/ms-supplier/,/newTag:/s/newTag: .*/newTag: $IMAGE_TAG/" "$OVERLAY_PATH"
+          fi
+          if [[ "${{ needs.detect-changes.outputs.ms-order-management }}" == "true" ]]; then
+            sed -i "/kubestock\/ms-order-management/,/newTag:/s/newTag: .*/newTag: $IMAGE_TAG/" "$OVERLAY_PATH"
+          fi
+          if [[ "${{ needs.detect-changes.outputs.ms-identity }}" == "true" ]]; then
+            sed -i "/kubestock\/ms-identity/,/newTag:/s/newTag: .*/newTag: $IMAGE_TAG/" "$OVERLAY_PATH"
+          fi
+          if [[ "${{ needs.detect-changes.outputs.web }}" == "true" ]]; then
+            sed -i "/kubestock\/web/,/newTag:/s/newTag: .*/newTag: $IMAGE_TAG/" "$OVERLAY_PATH"
+          fi
           
+          echo "Updated kustomization.yaml:"
           cat "$OVERLAY_PATH"
 
-      - name: Commit and push changes
-        if: matrix.changed == 'true'
+      - name: Commit and push staging changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "🚀 Update ${{ matrix.name }} to ${{ github.ref_name }}-${{ github.sha }}" || echo "No changes to commit"
+          git commit -m "🚀 Deploy to staging: ${{ needs.detect-changes.outputs.image-tag }}" || echo "No changes to commit"
           git push
 
-      - name: GitOps summary
-        if: matrix.changed == 'true'
+      - name: Staging deployment summary
         run: |
-          echo "## 📝 ${{ matrix.name }} - GitOps Updated" >> $GITHUB_STEP_SUMMARY
+          echo "## 🎭 Deployed to Staging" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** \`${{ needs.detect-changes.outputs.environment }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Image:** \`${{ matrix.image-name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**New Tag:** \`${{ github.ref_name }}-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ ArgoCD will sync automatically" >> $GITHUB_STEP_SUMMARY
-
-  # ═══════════════════════════════════════════════════════════════
-  # DEPLOYMENT STATUS
-  # ═══════════════════════════════════════════════════════════════
-  deploy-status:
-    name: Deployment Status
-    needs: [detect-changes, build-and-push, update-gitops]
-    runs-on: ubuntu-latest
-    if: always() && needs.detect-changes.outputs.any-service == 'true'
-    
-    steps:
-      - name: Check ArgoCD sync status
-        run: |
-          echo "## 🎉 Deployment Pipeline Complete" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** \`${{ needs.detect-changes.outputs.environment }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Git SHA:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Image Tag:** \`${{ needs.detect-changes.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Changed Services:" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ needs.detect-changes.outputs.ms-product }}" == "true" ]]; then echo "- ✅ ms-product" >> $GITHUB_STEP_SUMMARY; fi
+          if [[ "${{ needs.detect-changes.outputs.ms-inventory }}" == "true" ]]; then echo "- ✅ ms-inventory" >> $GITHUB_STEP_SUMMARY; fi
+          if [[ "${{ needs.detect-changes.outputs.ms-supplier }}" == "true" ]]; then echo "- ✅ ms-supplier" >> $GITHUB_STEP_SUMMARY; fi
+          if [[ "${{ needs.detect-changes.outputs.ms-order-management }}" == "true" ]]; then echo "- ✅ ms-order-management" >> $GITHUB_STEP_SUMMARY; fi
+          if [[ "${{ needs.detect-changes.outputs.ms-identity }}" == "true" ]]; then echo "- ✅ ms-identity" >> $GITHUB_STEP_SUMMARY; fi
+          if [[ "${{ needs.detect-changes.outputs.web }}" == "true" ]]; then echo "- ✅ web (frontend)" >> $GITHUB_STEP_SUMMARY; fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⏳ **ArgoCD will sync automatically. Review in staging before approving production.**" >> $GITHUB_STEP_SUMMARY
+
+  # ═══════════════════════════════════════════════════════════════
+  # PRODUCTION APPROVAL
+  # ═══════════════════════════════════════════════════════════════
+  production-approval:
+    name: Approve Production Deployment
+    needs: [detect-changes, deploy-staging]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://kubestock.dpiyumal.me
+    
+    steps:
+      - name: Production approval granted
+        run: |
+          echo "## ✅ Production Deployment Approved" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Proceeding to deploy to production..." >> $GITHUB_STEP_SUMMARY
+
+  # ═══════════════════════════════════════════════════════════════
+  # DEPLOY TO PRODUCTION
+  # ═══════════════════════════════════════════════════════════════
+  deploy-production:
+    name: Deploy to Production
+    needs: [detect-changes, production-approval]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout GitOps repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          ref: ${{ env.GITOPS_BRANCH }}
+          token: ${{ secrets.GITOPS_REPO_TOKEN }}
+
+      - name: Update production image tags
+        run: |
+          IMAGE_TAG="${{ needs.detect-changes.outputs.image-tag }}"
+          OVERLAY_PATH="overlays/production/kustomization.yaml"
           
+          echo "Updating production images to tag: $IMAGE_TAG"
+          
+          # Check if images section exists, if not add it
+          if ! grep -q "^images:" "$OVERLAY_PATH"; then
+            echo "" >> "$OVERLAY_PATH"
+            echo "images:" >> "$OVERLAY_PATH"
+          fi
+          
+          # Update all changed services
           if [[ "${{ needs.detect-changes.outputs.ms-product }}" == "true" ]]; then
-            echo "- ✅ **ms-product** - Built & Deployed" >> $GITHUB_STEP_SUMMARY
+            if grep -q "kubestock/ms-product" "$OVERLAY_PATH"; then
+              sed -i "/kubestock\/ms-product/,/newTag:/s/newTag: .*/newTag: $IMAGE_TAG/" "$OVERLAY_PATH"
+            else
+              echo "- name: 478468757808.dkr.ecr.ap-south-1.amazonaws.com/kubestock/ms-product" >> "$OVERLAY_PATH"
+              echo "  newTag: $IMAGE_TAG" >> "$OVERLAY_PATH"
+            fi
           fi
           if [[ "${{ needs.detect-changes.outputs.ms-inventory }}" == "true" ]]; then
-            echo "- ✅ **ms-inventory** - Built & Deployed" >> $GITHUB_STEP_SUMMARY
+            if grep -q "kubestock/ms-inventory" "$OVERLAY_PATH"; then
+              sed -i "/kubestock\/ms-inventory/,/newTag:/s/newTag: .*/newTag: $IMAGE_TAG/" "$OVERLAY_PATH"
+            else
+              echo "- name: 478468757808.dkr.ecr.ap-south-1.amazonaws.com/kubestock/ms-inventory" >> "$OVERLAY_PATH"
+              echo "  newTag: $IMAGE_TAG" >> "$OVERLAY_PATH"
+            fi
           fi
           if [[ "${{ needs.detect-changes.outputs.ms-supplier }}" == "true" ]]; then
-            echo "- ✅ **ms-supplier** - Built & Deployed" >> $GITHUB_STEP_SUMMARY
+            if grep -q "kubestock/ms-supplier" "$OVERLAY_PATH"; then
+              sed -i "/kubestock\/ms-supplier/,/newTag:/s/newTag: .*/newTag: $IMAGE_TAG/" "$OVERLAY_PATH"
+            else
+              echo "- name: 478468757808.dkr.ecr.ap-south-1.amazonaws.com/kubestock/ms-supplier" >> "$OVERLAY_PATH"
+              echo "  newTag: $IMAGE_TAG" >> "$OVERLAY_PATH"
+            fi
           fi
           if [[ "${{ needs.detect-changes.outputs.ms-order-management }}" == "true" ]]; then
-            echo "- ✅ **ms-order-management** - Built & Deployed" >> $GITHUB_STEP_SUMMARY
+            if grep -q "kubestock/ms-order-management" "$OVERLAY_PATH"; then
+              sed -i "/kubestock\/ms-order-management/,/newTag:/s/newTag: .*/newTag: $IMAGE_TAG/" "$OVERLAY_PATH"
+            else
+              echo "- name: 478468757808.dkr.ecr.ap-south-1.amazonaws.com/kubestock/ms-order-management" >> "$OVERLAY_PATH"
+              echo "  newTag: $IMAGE_TAG" >> "$OVERLAY_PATH"
+            fi
           fi
           if [[ "${{ needs.detect-changes.outputs.ms-identity }}" == "true" ]]; then
-            echo "- ✅ **ms-identity** - Built & Deployed" >> $GITHUB_STEP_SUMMARY
+            if grep -q "kubestock/ms-identity" "$OVERLAY_PATH"; then
+              sed -i "/kubestock\/ms-identity/,/newTag:/s/newTag: .*/newTag: $IMAGE_TAG/" "$OVERLAY_PATH"
+            else
+              echo "- name: 478468757808.dkr.ecr.ap-south-1.amazonaws.com/kubestock/ms-identity" >> "$OVERLAY_PATH"
+              echo "  newTag: $IMAGE_TAG" >> "$OVERLAY_PATH"
+            fi
           fi
           if [[ "${{ needs.detect-changes.outputs.web }}" == "true" ]]; then
-            echo "- ✅ **web** - Built & Deployed" >> $GITHUB_STEP_SUMMARY
+            if grep -q "kubestock/web" "$OVERLAY_PATH"; then
+              sed -i "/kubestock\/web/,/newTag:/s/newTag: .*/newTag: $IMAGE_TAG/" "$OVERLAY_PATH"
+            else
+              echo "- name: 478468757808.dkr.ecr.ap-south-1.amazonaws.com/kubestock/web" >> "$OVERLAY_PATH"
+              echo "  newTag: $IMAGE_TAG" >> "$OVERLAY_PATH"
+            fi
           fi
           
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "ArgoCD will automatically sync the changes to the cluster." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🚀 **Deployment successful!**" >> $GITHUB_STEP_SUMMARY
+          echo "Updated production kustomization.yaml:"
+          cat "$OVERLAY_PATH"
 
-      - name: Notify deployment
+      - name: Commit and push production changes
         run: |
-          echo "Deployment to ${{ needs.detect-changes.outputs.environment }} complete!"
-          echo "Images pushed to ECR and GitOps repository updated."
-          echo "ArgoCD will sync the changes automatically."
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "🚀 Deploy to production: ${{ needs.detect-changes.outputs.image-tag }}" || echo "No changes to commit"
+          git push
+
+      - name: Production deployment summary
+        run: |
+          echo "## 🚀 Deployed to Production" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image Tag:** \`${{ needs.detect-changes.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** https://kubestock.dpiyumal.me" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Changed Services:" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ needs.detect-changes.outputs.ms-product }}" == "true" ]]; then echo "- ✅ ms-product" >> $GITHUB_STEP_SUMMARY; fi
+          if [[ "${{ needs.detect-changes.outputs.ms-inventory }}" == "true" ]]; then echo "- ✅ ms-inventory" >> $GITHUB_STEP_SUMMARY; fi
+          if [[ "${{ needs.detect-changes.outputs.ms-supplier }}" == "true" ]]; then echo "- ✅ ms-supplier" >> $GITHUB_STEP_SUMMARY; fi
+          if [[ "${{ needs.detect-changes.outputs.ms-order-management }}" == "true" ]]; then echo "- ✅ ms-order-management" >> $GITHUB_STEP_SUMMARY; fi
+          if [[ "${{ needs.detect-changes.outputs.ms-identity }}" == "true" ]]; then echo "- ✅ ms-identity" >> $GITHUB_STEP_SUMMARY; fi
+          if [[ "${{ needs.detect-changes.outputs.web }}" == "true" ]]; then echo "- ✅ web (frontend)" >> $GITHUB_STEP_SUMMARY; fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 **Production deployment complete! ArgoCD will sync automatically.**" >> $GITHUB_STEP_SUMMARY
