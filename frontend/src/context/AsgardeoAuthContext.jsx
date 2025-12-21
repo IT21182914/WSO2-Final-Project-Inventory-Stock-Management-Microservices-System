@@ -122,12 +122,41 @@ export const AsgardeoAuthProvider = ({ children }) => {
             if (response.ok) {
               const profileData = await response.json();
               console.log("✅ User synced with backend:", profileData.data);
+              console.log(
+                "🔍 Full name from backend:",
+                profileData.data.full_name
+              );
+              console.log(
+                "🔍 Username from backend:",
+                profileData.data.username
+              );
+
+              // Update username from backend (more user-friendly than email)
+              if (profileData.data.username) {
+                mappedUser.username = profileData.data.username;
+                console.log("✅ Username updated to:", mappedUser.username);
+              }
+
               // Update role and supplier_id from backend if different
               if (profileData.data.role) {
                 mappedUser.role = profileData.data.role;
               }
               if (profileData.data.supplier_id) {
                 mappedUser.supplier_id = profileData.data.supplier_id;
+              }
+
+              // Use full_name if available, otherwise use backend username, then fallback to email-based username
+              if (profileData.data.full_name) {
+                mappedUser.full_name = profileData.data.full_name;
+                console.log("✅ Full name set to:", mappedUser.full_name);
+              } else if (profileData.data.username) {
+                mappedUser.full_name = profileData.data.username;
+                console.log(
+                  "✅ Using backend username as full_name:",
+                  mappedUser.full_name
+                );
+              } else {
+                console.warn("⚠️ No full_name or username in backend response");
               }
             } else {
               console.warn(
@@ -140,6 +169,15 @@ export const AsgardeoAuthProvider = ({ children }) => {
             // Continue anyway - user can still use the app
           }
 
+          console.log("🎯 Final mappedUser before setUser:", mappedUser);
+          console.log(
+            "📋 User fields - full_name:",
+            mappedUser.full_name,
+            "username:",
+            mappedUser.username,
+            "email:",
+            mappedUser.email
+          );
           setUser(mappedUser);
         } else {
           console.log("❌ User is not authenticated");

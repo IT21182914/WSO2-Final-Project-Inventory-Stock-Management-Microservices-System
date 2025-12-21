@@ -184,10 +184,12 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         <div className="p-4 border-t border-dark-700">
           <div className="flex items-center">
             <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-semibold">
-              {user.username?.charAt(0).toUpperCase()}
+              {(user.full_name || user.username)?.charAt(0).toUpperCase()}
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium">{user.username}</p>
+              <p className="text-sm font-medium">
+                {user.full_name || user.username}
+              </p>
               <p className="text-xs text-dark-400 capitalize">
                 {user.role?.replace("_", " ")}
               </p>

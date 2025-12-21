@@ -7,6 +7,15 @@ const Navbar = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
 
+  // Debug logging
+  console.log("🔍 Navbar - Current user object:", user);
+  console.log("📋 Navbar - User fields:", {
+    full_name: user?.full_name,
+    username: user?.username,
+    email: user?.email,
+    displayValue: user?.full_name || user?.username,
+  });
+
   return (
     <nav className="bg-white shadow-sm border-b border-dark-200 px-6 py-4">
       <div className="flex items-center justify-between">
@@ -38,11 +47,11 @@ const Navbar = ({ toggleSidebar }) => {
               className="flex items-center space-x-3 p-2 rounded-lg hover:bg-dark-100 transition-colors"
             >
               <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white font-semibold text-sm">
-                {user?.username?.charAt(0).toUpperCase()}
+                {(user?.full_name || user?.username)?.charAt(0).toUpperCase()}
               </div>
               <div className="hidden md:block text-left">
                 <p className="text-sm font-medium text-dark-900">
-                  {user?.username}
+                  {user?.full_name || user?.username}
                 </p>
                 <p className="text-xs text-dark-500 capitalize">
                   {user?.role?.replace("_", " ")}
