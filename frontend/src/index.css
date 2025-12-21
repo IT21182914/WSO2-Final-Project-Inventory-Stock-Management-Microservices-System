@@ -135,6 +135,25 @@ body {
   display: none;
 }
 
+/* Custom scrollbar for sidebar and modern elements */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(17, 24, 39, 0.3);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #f97316, #c2410c);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #c2410c, #9a3412);
+}
+
 /* Custom scrollbar for other elements */
 ::-webkit-scrollbar {
   width: 6px;
@@ -147,7 +166,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  background: linear-gradient(135deg, #f97316, #c2410c);
   border-radius: 3px;
   transition: all 0.2s ease;
 }

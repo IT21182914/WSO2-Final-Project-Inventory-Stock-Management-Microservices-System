@@ -195,8 +195,27 @@ const AdminDashboard = () => {
     <div>
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-dark-900">Admin Dashboard</h1>
-        <p className="text-dark-600 mt-2">
+        <h1
+          className="text-5xl font-bold text-dark-900"
+          style={{
+            fontFamily: "Outfit, sans-serif",
+            fontWeight: "800",
+            letterSpacing: "-0.03em",
+            background: "linear-gradient(135deg, #111827 0%, #f97316 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
+        >
+          Admin Dashboard
+        </h1>
+        <p
+          className="text-dark-600 mt-3 text-lg"
+          style={{
+            fontFamily: "DM Sans, sans-serif",
+            fontWeight: "400",
+            letterSpacing: "0.01em",
+          }}
+        >
           Welcome back! Here's what's happening in your inventory.
         </p>
       </div>
@@ -206,9 +225,32 @@ const AdminDashboard = () => {
         <Card className="bg-gradient-primary text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm opacity-90">Total Products</p>
-              <h3 className="text-3xl font-bold mt-2">{stats.totalProducts}</h3>
-              <p className="text-xs mt-1 opacity-75">Active products only</p>
+              <p
+                className="text-sm opacity-90"
+                style={{
+                  fontFamily: "DM Sans, sans-serif",
+                  fontWeight: "600",
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Total Products
+              </p>
+              <h3
+                className="text-4xl font-bold mt-2"
+                style={{
+                  fontFamily: "Space Grotesk, sans-serif",
+                  fontWeight: "700",
+                }}
+              >
+                {stats.totalProducts}
+              </h3>
+              <p
+                className="text-xs mt-1 opacity-75"
+                style={{ fontFamily: "DM Sans, sans-serif", fontWeight: "400" }}
+              >
+                Active products only
+              </p>
             </div>
             <Package size={40} className="opacity-80" />
           </div>
@@ -217,11 +259,32 @@ const AdminDashboard = () => {
         <Card className="bg-gradient-dark text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm opacity-90">Total Stock Units</p>
-              <h3 className="text-3xl font-bold mt-2">
+              <p
+                className="text-sm opacity-90"
+                style={{
+                  fontFamily: "DM Sans, sans-serif",
+                  fontWeight: "600",
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Total Stock Units
+              </p>
+              <h3
+                className="text-4xl font-bold mt-2"
+                style={{
+                  fontFamily: "Space Grotesk, sans-serif",
+                  fontWeight: "700",
+                }}
+              >
                 {stats.totalInventory.toLocaleString()}
               </h3>
-              <p className="text-xs mt-1 opacity-75">Across all products</p>
+              <p
+                className="text-xs mt-1 opacity-75"
+                style={{ fontFamily: "DM Sans, sans-serif", fontWeight: "400" }}
+              >
+                Across all products
+              </p>
             </div>
             <Box size={40} className="opacity-80" />
           </div>
@@ -230,9 +293,32 @@ const AdminDashboard = () => {
         <Card className="bg-gradient-orange text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm opacity-90">Low Stock Alerts</p>
-              <h3 className="text-3xl font-bold mt-2">{stats.lowStockItems}</h3>
-              <p className="text-xs mt-1 opacity-75">Below minimum threshold</p>
+              <p
+                className="text-sm opacity-90"
+                style={{
+                  fontFamily: "DM Sans, sans-serif",
+                  fontWeight: "600",
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Low Stock Alerts
+              </p>
+              <h3
+                className="text-4xl font-bold mt-2"
+                style={{
+                  fontFamily: "Space Grotesk, sans-serif",
+                  fontWeight: "700",
+                }}
+              >
+                {stats.lowStockItems}
+              </h3>
+              <p
+                className="text-xs mt-1 opacity-75"
+                style={{ fontFamily: "DM Sans, sans-serif", fontWeight: "400" }}
+              >
+                Below minimum threshold
+              </p>
             </div>
             <AlertCircle size={40} className="opacity-80" />
           </div>
@@ -241,9 +327,30 @@ const AdminDashboard = () => {
         <Card className="bg-gradient-dark text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm opacity-90">Total Orders</p>
-              <h3 className="text-3xl font-bold mt-2">{stats.totalOrders}</h3>
-              <p className="text-xs mt-1 opacity-75">
+              <p
+                className="text-sm opacity-90"
+                style={{
+                  fontFamily: "DM Sans, sans-serif",
+                  fontWeight: "600",
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Total Orders
+              </p>
+              <h3
+                className="text-4xl font-bold mt-2"
+                style={{
+                  fontFamily: "Space Grotesk, sans-serif",
+                  fontWeight: "700",
+                }}
+              >
+                {stats.totalOrders}
+              </h3>
+              <p
+                className="text-xs mt-1 opacity-75"
+                style={{ fontFamily: "DM Sans, sans-serif", fontWeight: "400" }}
+              >
                 {stats.pendingOrders} pending
               </p>
             </div>
@@ -257,8 +364,21 @@ const AdminDashboard = () => {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-dark-600">Active Users</p>
-              <h3 className="text-2xl font-bold text-dark-900 mt-1">
+              <p
+                className="text-sm text-dark-600"
+                style={{
+                  fontFamily: "DM Sans, sans-serif",
+                  fontWeight: "600",
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Active Users
+              </p>
+              <h3
+                className="text-3xl font-bold text-dark-900 mt-1"
+                style={{ fontFamily: "Sora, sans-serif", fontWeight: "700" }}
+              >
                 {stats.totalUsers}
               </h3>
             </div>
@@ -269,8 +389,21 @@ const AdminDashboard = () => {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-dark-600">Total Suppliers</p>
-              <h3 className="text-2xl font-bold text-dark-900 mt-1">
+              <p
+                className="text-sm text-dark-600"
+                style={{
+                  fontFamily: "DM Sans, sans-serif",
+                  fontWeight: "600",
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Total Suppliers
+              </p>
+              <h3
+                className="text-3xl font-bold text-dark-900 mt-1"
+                style={{ fontFamily: "Sora, sans-serif", fontWeight: "700" }}
+              >
                 {stats.totalSuppliers}
               </h3>
             </div>
@@ -281,8 +414,21 @@ const AdminDashboard = () => {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-dark-600">Revenue (Delivered)</p>
-              <h3 className="text-2xl font-bold text-dark-900 mt-1">
+              <p
+                className="text-sm text-dark-600"
+                style={{
+                  fontFamily: "DM Sans, sans-serif",
+                  fontWeight: "600",
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Revenue (Delivered)
+              </p>
+              <h3
+                className="text-3xl font-bold text-dark-900 mt-1"
+                style={{ fontFamily: "Sora, sans-serif", fontWeight: "700" }}
+              >
                 ${stats.totalRevenue.toFixed(2)}
               </h3>
             </div>
@@ -294,8 +440,15 @@ const AdminDashboard = () => {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <Card>
-          <h3 className="text-lg font-semibold text-dark-900 mb-4 flex items-center">
-            <TrendingUp size={20} className="mr-2 text-primary" />
+          <h3
+            className="text-xl font-semibold text-dark-900 mb-4 flex items-center"
+            style={{
+              fontFamily: "Outfit, sans-serif",
+              fontWeight: "700",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            <TrendingUp size={22} className="mr-2 text-primary" />
             Stock Movements (Last 7 Days)
           </h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -311,8 +464,15 @@ const AdminDashboard = () => {
         </Card>
 
         <Card>
-          <h3 className="text-lg font-semibold text-dark-900 mb-4 flex items-center">
-            <Activity size={20} className="mr-2 text-primary" />
+          <h3
+            className="text-xl font-semibold text-dark-900 mb-4 flex items-center"
+            style={{
+              fontFamily: "Outfit, sans-serif",
+              fontWeight: "700",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            <Activity size={22} className="mr-2 text-primary" />
             Products by Category
           </h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -329,7 +489,14 @@ const AdminDashboard = () => {
 
       {/* Recent Activity */}
       <Card>
-        <h3 className="text-lg font-semibold text-dark-900 mb-4">
+        <h3
+          className="text-xl font-semibold text-dark-900 mb-4"
+          style={{
+            fontFamily: "Outfit, sans-serif",
+            fontWeight: "700",
+            letterSpacing: "-0.02em",
+          }}
+        >
           Recent Stock Activity
         </h3>
         <div className="space-y-3">
@@ -353,7 +520,14 @@ const AdminDashboard = () => {
                   <Activity size={20} />
                 </div>
                 <div className="ml-4 flex-1">
-                  <p className="text-sm font-medium text-dark-900">
+                  <p
+                    className="text-sm font-medium text-dark-900"
+                    style={{
+                      fontFamily: "DM Sans, sans-serif",
+                      fontWeight: "700",
+                      letterSpacing: "0.01em",
+                    }}
+                  >
                     {activity.type === "in"
                       ? "Stock Added"
                       : activity.type === "out"
@@ -368,24 +542,46 @@ const AdminDashboard = () => {
                       ? "Stock Expired"
                       : "Stock Movement"}
                   </p>
-                  <p className="text-sm text-dark-700 mt-1">
+                  <p
+                    className="text-sm text-dark-700 mt-1"
+                    style={{
+                      fontFamily: "DM Sans, sans-serif",
+                      fontWeight: "500",
+                    }}
+                  >
                     {activity.product} ({activity.sku})
                   </p>
                   <div className="flex items-center gap-3 mt-1">
                     <span
-                      className={`text-sm font-semibold ${
+                      className={`text-base font-semibold ${
                         activity.quantity > 0 ? "text-primary" : "text-dark-700"
                       }`}
+                      style={{
+                        fontFamily: "JetBrains Mono, monospace",
+                        fontWeight: "700",
+                      }}
                     >
                       {activity.quantity > 0 ? "+" : ""}
                       {activity.quantity} units
                     </span>
-                    <span className="text-xs text-dark-500">
+                    <span
+                      className="text-xs text-dark-500"
+                      style={{
+                        fontFamily: "DM Sans, sans-serif",
+                        fontWeight: "500",
+                      }}
+                    >
                       {activity.time}
                     </span>
                   </div>
                   {activity.notes && (
-                    <p className="text-xs text-dark-500 mt-1 italic">
+                    <p
+                      className="text-xs text-dark-500 mt-1 italic"
+                      style={{
+                        fontFamily: "DM Sans, sans-serif",
+                        fontWeight: "400",
+                      }}
+                    >
                       {activity.notes}
                     </p>
                   )}
@@ -393,7 +589,14 @@ const AdminDashboard = () => {
               </div>
             ))
           ) : (
-            <p className="text-center text-dark-500 py-4">
+            <p
+              className="text-center text-dark-500 py-4"
+              style={{
+                fontFamily: "DM Sans, sans-serif",
+                fontWeight: "500",
+                letterSpacing: "0.01em",
+              }}
+            >
               No recent activities
             </p>
           )}
